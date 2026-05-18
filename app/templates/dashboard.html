@@ -1,0 +1,395 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — Grah Decor POS{% endblock %}
+
+{% block content %}
+
+<!-- ── Page Header ─────────────────────────────────────────────────────── -->
+<div class="page-header">
+    <h1>📊 Dashboard</h1>
+    <!-- Month Navigator -->
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+        <a href="{{ url_for('dashboard.dashboard', month=prev_month_key) }}" class="btn btn-sm" id="btn-prev-month">← Prev</a>
+        <span style="font-weight:600; font-size:0.95rem; min-width:110px; text-align:center;">{{ month_label }}</span>
+        <a href="{{ url_for('dashboard.dashboard', month=next_month_key) }}" class="btn btn-sm" id="btn-next-month">Next →</a>
+        <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-sm btn-outline-primary" id="btn-current-month">Today</a>
+    </div>
+</div>
+
+<!-- ── KPI Cards ───────────────────────────────────────────────────────── -->
+<div class="dashboard-cards" id="kpi-row">
+
+    <div class="dash-card" id="kpi-total-orders">
+        <span class="dash-card-icon">📋</span>
+        <div class="dash-card-label">Total Orders</div>
+        <div class="dash-card-value" style="color:var(--text);">{{ total_orders }}</div>
+    </div>
+
+    <div class="dash-card card-net" id="kpi-expected-revenue">
+        <span class="dash-card-icon">💳</span>
+        <div class="dash-card-label">Expected Revenue</div>
+        <div class="dash-card-value">₹{{ '{:,.0f}'.format(expected_revenue) }}</div>
+        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.25rem;">bank_settlement (excl. Cancelled & RTO)</div>
+    </div>
+
+    <div class="dash-card card-inflow" id="kpi-cash-received">
+        <span class="dash-card-icon">💰</span>
+        <div class="dash-card-label">Cash Received</div>
+        <div class="dash-card-value">₹{{ '{:,.0f}'.format(cash_received) }}</div>
+        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.25rem;">cashbook inflows this month</div>
+    </div>
+
+    <div class="dash-card {% if net_cash_flow >= 0 %}card-inflow{% else %}card-outflow{% endif %}" id="kpi-net-cash">
+        <span class="dash-card-icon">{% if net_cash_flow >= 0 %}📈{% else %}📉{% endif %}</span>
+        <div class="dash-card-label">Net Cash Flow</div>
+        <div class="dash-card-value">{% if net_cash_flow >= 0 %}+{% endif %}₹{{ '{:,.0f}'.format(net_cash_flow) }}</div>
+        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.25rem;">inflow − outflow this month</div>
+    </div>
+
+</div>
+
+<!-- ── Row 2: Revenue Trend + Order Status ─────────────────────────────── -->
+<div style="display:grid; grid-template-columns:1.6fr 1fr; gap:1rem; margin-bottom:1rem;">
+
+    <!-- Revenue Trend Bar Chart -->
+    <div class="form-card" id="section-revenue-trend" style="margin-bottom:0;">
+        <h3 style="margin-bottom:1rem;">📅 Monthly Revenue Trend <span style="font-weight:400; color:var(--text-muted); font-size:0.78rem;">(last 6 months — expected)</span></h3>
+        <div style="position:relative; height:220px;">
+            <canvas id="revenueChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Order Status Breakdown -->
+    <div class="form-card" id="section-order-status" style="margin-bottom:0;">
+        <h3 style="margin-bottom:0.75rem;">📦 Order Status — {{ month_label }}</h3>
+
+        <!-- Rate pills -->
+        <div style="display:flex; gap:0.5rem; margin-bottom:0.85rem; flex-wrap:wrap;">
+            <span class="badge badge-rto" style="font-size:0.78rem; padding:0.2rem 0.6rem;">
+                Return Rate: {{ return_rate }}%
+            </span>
+            <span class="badge badge-cancelled" style="font-size:0.78rem; padding:0.2rem 0.6rem;">
+                RTO Rate: {{ rto_rate }}%
+            </span>
+        </div>
+
+        {% if status_counts %}
+        <div style="position:relative; height:190px;">
+            <canvas id="statusChart"></canvas>
+        </div>
+        {% else %}
+        <p class="empty-state" style="padding:2rem 0 !important;">No orders this month.</p>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- ── Row 3: Inventory Snapshot + Money Detail ────────────────────────── -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+
+    <!-- Inventory Snapshot -->
+    <div class="form-card" id="section-inventory" style="margin-bottom:0;">
+        <h3 style="margin-bottom:1rem;">📦 Inventory Snapshot</h3>
+
+        <!-- Stock Valuation -->
+        <div style="margin-bottom:1rem;">
+            <div class="summary-item" style="flex-direction:column; align-items:flex-start; gap:0.15rem; display:inline-flex;">
+                <span class="summary-label">Ready Stock Value</span>
+                <span class="summary-value">₹{{ '{:,.0f}'.format(stock_valuation.ready_stock_value) }}</span>
+            </div>
+        </div>
+
+        <!-- Low Stock Alerts -->
+        <div style="margin-bottom:1rem;">
+            <div class="form-section-title">⚠️ Low Stock Alerts</div>
+            {% if low_stock_items %}
+            <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:150px; overflow-y:auto;">
+                {% for item in low_stock_items %}
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem; background:var(--warning-light); border:1px solid #fde68a; border-radius:6px; font-size:0.82rem;">
+                    <span style="font-weight:500;">
+                        {{ item.name }}{% if item.color %} <span style="color:var(--text-muted);">({{ item.color }})</span>{% endif %}
+                    </span>
+                    <span style="color:var(--danger); font-weight:700;">{{ item.quantity|int }} / {{ item.min_stock }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">All items are adequately stocked.</p>
+            {% endif %}
+        </div>
+
+        <!-- Top 5 Sold Products -->
+        <div>
+            <div class="form-section-title">🏆 Top 5 Sold — {{ month_label }}</div>
+            {% if top_sold_products %}
+            {% set max_sold = top_sold_products[0].sold_qty if top_sold_products else 1 %}
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                {% for item in top_sold_products %}
+                <div style="font-size:0.82rem;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.15rem;">
+                        <span style="font-weight:500; color:var(--text);">{{ loop.index }}. {{ item.label }}</span>
+                        <span style="font-weight:700; color:var(--primary);">{{ item.sold_qty|int }} units</span>
+                    </div>
+                    <div style="height:5px; background:var(--border); border-radius:99px; overflow:hidden;">
+                        <div style="height:100%; background:var(--primary); border-radius:99px; width:{{ ((item.sold_qty / max_sold) * 100)|round|int }}%;"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No sales logged in inventory log this month.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Money Detail -->
+    <div class="form-card" id="section-money-detail" style="margin-bottom:0;">
+        <h3 style="margin-bottom:1rem;">💸 Money Detail — {{ month_label }}</h3>
+
+        <!-- Outflow Donut Chart -->
+        <div style="margin-bottom:1rem;">
+            <div class="form-section-title">Outflow by Category</div>
+            {% if outflow_by_category %}
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <div style="position:relative; width:140px; height:140px; flex-shrink:0;">
+                    <canvas id="outflowChart"></canvas>
+                </div>
+                <!-- Legend -->
+                <div style="display:flex; flex-direction:column; gap:0.35rem; flex:1; min-width:0;">
+                    {% for cat, amt in outflow_by_category.items() %}
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;" class="outflow-legend-item">
+                        <span style="display:flex; align-items:center; gap:0.4rem;">
+                            <span class="outflow-legend-dot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block;"></span>
+                            {{ cat }}
+                        </span>
+                        <span style="font-weight:600; white-space:nowrap; margin-left:0.5rem;">₹{{ '{:,.0f}'.format(amt) }}</span>
+                    </div>
+                    {% endfor %}
+                    <div style="border-top:1px solid var(--border); padding-top:0.35rem; margin-top:0.15rem; display:flex; justify-content:space-between; font-size:0.82rem;">
+                        <span style="color:var(--text-secondary); font-weight:600;">Total Outflow</span>
+                        <span style="font-weight:700; color:var(--danger);">₹{{ '{:,.0f}'.format(total_outflow) }}</span>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No outflows recorded this month.</p>
+            {% endif %}
+        </div>
+
+        <!-- Open Purchase Orders -->
+        <div>
+            <div class="form-section-title">🛒 Open Purchase Orders</div>
+            {% if open_purchase_orders %}
+            <div style="overflow-x:auto;">
+                <table class="data-table" id="open-po-table">
+                    <thead>
+                        <tr>
+                            <th>PO #</th>
+                            <th>Vendor</th>
+                            <th>Status</th>
+                            <th class="text-right">Balance Due</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for po in open_purchase_orders %}
+                        <tr>
+                            <td class="text-mono">{{ po.po_number }}</td>
+                            <td style="font-weight:500;">{{ po.vendor_name }}</td>
+                            <td>
+                                {% if po.payment_status == 'partially_paid' %}
+                                    <span class="badge badge-pending">Part Paid</span>
+                                {% else %}
+                                    <span class="badge badge-rto">Unpaid</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-right" style="font-weight:700; color:var(--danger);">
+                                ₹{{ '{:,.0f}'.format(po.balance_due) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No outstanding purchase orders.</p>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    // ── Shared palette (matches CSS vars) ───────────────────────────────
+    const PRIMARY   = '#6366f1';
+    const SUCCESS   = '#10b981';
+    const DANGER    = '#ef4444';
+    const WARNING   = '#f59e0b';
+    const MUTED     = '#9ca3af';
+    const BORDER    = '#e5e7eb';
+
+    const CATEGORY_PALETTE = [
+        '#6366f1', '#10b981', '#f59e0b', '#ef4444',
+        '#3b82f6', '#8b5cf6', '#06b6d4', '#f97316',
+        '#ec4899', '#84cc16',
+    ];
+
+    Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
+    Chart.defaults.font.size   = 12;
+    Chart.defaults.color       = '#6b7280';
+
+    // ── 1. Revenue Trend Bar Chart ───────────────────────────────────────
+    const trendData    = {{ revenue_trend | tojson }};
+    const trendLabels  = trendData.map(d => d.month_label);
+    const trendValues  = trendData.map(d => d.expected_revenue);
+
+    const revenueCtx = document.getElementById('revenueChart');
+    if (revenueCtx) {
+        new Chart(revenueCtx, {
+            type: 'bar',
+            data: {
+                labels: trendLabels,
+                datasets: [{
+                    label: 'Expected Revenue (₹)',
+                    data: trendValues,
+                    backgroundColor: trendLabels.map((_, i) =>
+                        i === trendLabels.length - 1 ? PRIMARY : 'rgba(99,102,241,0.35)'
+                    ),
+                    borderColor: PRIMARY,
+                    borderWidth: 1.5,
+                    borderRadius: 5,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ' ₹' + ctx.parsed.y.toLocaleString('en-IN')
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false }, border: { display: false } },
+                    y: {
+                        grid: { color: BORDER },
+                        border: { display: false, dash: [3, 3] },
+                        ticks: {
+                            callback: v => '₹' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v)
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── 2. Order Status Horizontal Bar Chart ─────────────────────────────
+    const statusCounts = {{ status_counts | tojson }};
+    const statusCtx    = document.getElementById('statusChart');
+
+    const STATUS_COLORS = {
+        'Pending':   WARNING,
+        'Shipped':   '#3b82f6',
+        'Delivered': SUCCESS,
+        'Settled':   '#059669',
+        'Cancelled': MUTED,
+        'Returned':  DANGER,
+        'RTO':       '#dc2626',
+    };
+
+    if (statusCtx && Object.keys(statusCounts).length) {
+        const statusOrder = ['Pending', 'Shipped', 'Delivered', 'Settled', 'Returned', 'RTO', 'Cancelled'];
+        const orderedKeys = statusOrder.filter(s => statusCounts[s]);
+        // Add any unexpected statuses at the end
+        Object.keys(statusCounts).forEach(s => { if (!orderedKeys.includes(s)) orderedKeys.push(s); });
+
+        new Chart(statusCtx, {
+            type: 'bar',
+            data: {
+                labels: orderedKeys,
+                datasets: [{
+                    label: 'Orders',
+                    data: orderedKeys.map(s => statusCounts[s] || 0),
+                    backgroundColor: orderedKeys.map(s => STATUS_COLORS[s] || PRIMARY),
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ' ' + ctx.parsed.x + ' orders'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: BORDER },
+                        border: { display: false },
+                        ticks: { precision: 0 }
+                    },
+                    y: { grid: { display: false }, border: { display: false } }
+                }
+            }
+        });
+    }
+
+    // ── 3. Outflow Donut Chart + Legend Colours ──────────────────────────
+    const outflowData  = {{ outflow_by_category | tojson }};
+    const outflowCtx   = document.getElementById('outflowChart');
+
+    const outflowKeys  = Object.keys(outflowData);
+    const outflowAmts  = outflowKeys.map(k => outflowData[k]);
+    const outflowColors = outflowKeys.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length]);
+
+    if (outflowCtx && outflowKeys.length) {
+        new Chart(outflowCtx, {
+            type: 'doughnut',
+            data: {
+                labels: outflowKeys,
+                datasets: [{
+                    data: outflowAmts,
+                    backgroundColor: outflowColors,
+                    borderWidth: 2,
+                    borderColor: '#ffffff',
+                    hoverOffset: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ' ₹' + ctx.parsed.toLocaleString('en-IN')
+                        }
+                    }
+                }
+            }
+        });
+
+        // Inject colours into HTML legend dots
+        document.querySelectorAll('.outflow-legend-dot').forEach((dot, i) => {
+            dot.style.backgroundColor = outflowColors[i] || MUTED;
+        });
+    }
+
+})();
+</script>
+{% endblock %}

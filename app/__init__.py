@@ -59,8 +59,10 @@ def create_app():
     from app.routes.settlements import settlements_bp
     from app.routes.contact import contact_bp
     from app.routes.snapshots import snapshots_bp
+    from app.routes.dashboard import dashboard_bp
     
     app.register_blueprint(auth_bp)
+    app.register_blueprint(dashboard_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(purchase_bp)
     app.register_blueprint(orders_bp)
@@ -73,6 +75,6 @@ def create_app():
     @app.route('/')
     def index():
         from flask import redirect, url_for
-        return redirect(url_for('orders.orders_list'))
+        return redirect(url_for('dashboard.dashboard'))
 
     return app
