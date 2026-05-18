@@ -668,8 +668,10 @@
     function openAdjustModal(docId, name, color) {
         const label = name + (color ? ' (' + color + ')' : '');
         document.getElementById('adjustItemLabel').textContent = label;
-        document.getElementById('adjustForm').action = '/inventory/ready/adjust/' + docId;
+        var form = document.getElementById('adjustForm');
+        form.action = '/inventory/ready/adjust/' + docId;
         document.getElementById('adjustQtyInput').value = '';
+        resetFormSubmitGuard(form);
         document.getElementById('adjustModal').classList.remove('hidden');
     }
 
@@ -836,7 +838,10 @@
 
     function openVariantModal(parentId, parentName) {
         document.getElementById('variantParentName').textContent = parentName;
-        document.getElementById('variantForm').action = '/inventory/ready/add_variant/' + parentId;
+        var form = document.getElementById('variantForm');
+        form.action = '/inventory/ready/add_variant/' + parentId;
+        form.reset();
+        resetFormSubmitGuard(form);
         document.getElementById('variantModal').classList.remove('hidden');
     }
 
