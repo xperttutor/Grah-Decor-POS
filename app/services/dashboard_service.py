@@ -4,7 +4,6 @@ from google.cloud.firestore_v1 import FieldFilter
 from app import get_db
 from app.services.snapshot_service import (
     _month_bounds,
-    _aggregate_logs_for_period,
 )
 
 
@@ -260,19 +259,40 @@ def get_inventory_snapshot(start: datetime, end: datetime) -> dict:
                 })
 
     # ── 2. Top 5 sold products for the exact date range ───────────────────
-    logs    = _fetch_rs_logs_bounded(start, end)
-    buckets = _aggregate_logs_for_period(logs)
+    logs = _fetch_rs_logs_bounded(start, end)
 
-    sold_sorted = sorted(buckets.values(), key=lambda b: b['sold'], reverse=True)
-    top_sold = []
-    for b in sold_sorted[:5]:
-        label = b['item_name']
-        if b.get('color'):
-            label = f"{b['item_name']} ({b['color']})"
-        top_sold.append({
-            'label':    label,
-            'sold_qty': round(b['sold'], 2),
-        })
+    # Manually aggregate so we can normalise keys to lowercase and only
+    # count OUT movements (negative delta). _aggregate_logs_for_period is
+    # shared with snapshots and must not be changed, so we roll our own here.
+    sold_buckets = {}   # lowercase_key → {display_label, sold_qty}
+    for log in logs:
+        delta = float(log.get('delta', 0))
+        if delta >= 0:
+            continue   # skip IN / restock entries entirely
+
+        name  = log.get('item_name', '') or ''
+        color = (log.get('color', '') or '').strip()
+
+        # Normalise to lowercase for deduplication
+        norm_key = f"{name.lower()}::{color.lower()}"
+
+        if norm_key not in sold_buckets:
+            # Store the original-casing display label on first encounter
+            label = f"{name} ({color})" if color else name
+            sold_buckets[norm_key] = {'label': label, 'sold_qty': 0.0}
+
+        sold_buckets[norm_key]['sold_qty'] += abs(delta)
+
+    # Sort by sold_qty descending; exclude any bucket that ended up at 0
+    top_sold = sorted(
+        [b for b in sold_buckets.values() if b['sold_qty'] > 0],
+        key=lambda b: b['sold_qty'],
+        reverse=True,
+    )[:5]
+
+    # Round final quantities
+    for b in top_sold:
+        b['sold_qty'] = round(b['sold_qty'], 2)
 
     return {
         'low_stock_items': low_stock_items,
