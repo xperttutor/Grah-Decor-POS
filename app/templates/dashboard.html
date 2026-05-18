@@ -148,20 +148,20 @@
         <!-- Outflow Donut Chart -->
         <div style="margin-bottom:1rem;">
             <div class="form-section-title">Outflow by Category</div>
-            {% if outflow_by_category %}
+            {% if outflow_chart_data %}
             <div style="display:flex; align-items:center; gap:1rem;">
                 <div style="position:relative; width:140px; height:140px; flex-shrink:0;">
                     <canvas id="outflowChart"></canvas>
                 </div>
-                <!-- Legend -->
-                <div style="display:flex; flex-direction:column; gap:0.35rem; flex:1; min-width:0;">
-                    {% for cat, amt in outflow_by_category.items() %}
-                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;" class="outflow-legend-item">
+                <!-- Legend: each row color comes directly from the Python-assigned color field -->
+                <div id="outflow-legend" style="display:flex; flex-direction:column; gap:0.35rem; flex:1; min-width:0;">
+                    {% for item in outflow_chart_data %}
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;">
                         <span style="display:flex; align-items:center; gap:0.4rem;">
-                            <span class="outflow-legend-dot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block;"></span>
-                            {{ cat }}
+                            <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block;background:{{ item.color }};"></span>
+                            {{ item.category }}
                         </span>
-                        <span style="font-weight:600; white-space:nowrap; margin-left:0.5rem;">₹{{ '{:,.0f}'.format(amt) }}</span>
+                        <span style="font-weight:600; white-space:nowrap; margin-left:0.5rem;">₹{{ '{:,.0f}'.format(item.amount) }}</span>
                     </div>
                     {% endfor %}
                     <div style="border-top:1px solid var(--border); padding-top:0.35rem; margin-top:0.15rem; display:flex; justify-content:space-between; font-size:0.82rem;">
@@ -284,7 +284,7 @@
                         grid: { color: BORDER },
                         border: { display: false, dash: [3, 3] },
                         ticks: {
-                            callback: v => '₹' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v)
+                            callback: v => '₹' + v.toLocaleString('en-IN')
                         }
                     }
                 }
@@ -348,22 +348,21 @@
         });
     }
 
-    // ── 3. Outflow Donut Chart + Legend Colours ──────────────────────────
-    const outflowData  = {{ outflow_by_category | tojson }};
+    // ── 3. Outflow Donut Chart ───────────────────────────────────────────────
+    // outflow_chart_data is a Python-ordered list: [{category, amount, color}, ...]
+    // The same list drives both the legend HTML (rendered by Jinja2 above) and the
+    // Chart.js dataset here — color[i] is guaranteed identical in both places.
+    const outflowItems = {{ outflow_chart_data | tojson }};
     const outflowCtx   = document.getElementById('outflowChart');
 
-    const outflowKeys  = Object.keys(outflowData);
-    const outflowAmts  = outflowKeys.map(k => outflowData[k]);
-    const outflowColors = outflowKeys.map((_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length]);
-
-    if (outflowCtx && outflowKeys.length) {
+    if (outflowCtx && outflowItems.length) {
         new Chart(outflowCtx, {
             type: 'doughnut',
             data: {
-                labels: outflowKeys,
+                labels:   outflowItems.map(d => d.category),
                 datasets: [{
-                    data: outflowAmts,
-                    backgroundColor: outflowColors,
+                    data:            outflowItems.map(d => d.amount),
+                    backgroundColor: outflowItems.map(d => d.color),
                     borderWidth: 2,
                     borderColor: '#ffffff',
                     hoverOffset: 6,
@@ -382,11 +381,6 @@
                     }
                 }
             }
-        });
-
-        // Inject colours into HTML legend dots
-        document.querySelectorAll('.outflow-legend-dot').forEach((dot, i) => {
-            dot.style.backgroundColor = outflowColors[i] || MUTED;
         });
     }
 

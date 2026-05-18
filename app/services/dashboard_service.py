@@ -87,11 +87,18 @@ def get_order_kpis(year: int, month: int) -> dict:
 def get_cashbook_kpis(year: int, month: int) -> dict:
     """
     Query `cashbook` collection for the given month and compute:
-      - cash_received:        sum of inflow amounts
-      - total_outflow:        sum of outflow amounts
-      - net_cash_flow:        cash_received - total_outflow
-      - outflow_by_category:  {category: amount} for all outflows
+      - cash_received:       sum of inflow amounts
+      - total_outflow:       sum of outflow amounts
+      - net_cash_flow:       cash_received - total_outflow
+      - outflow_chart_data:  list of {category, amount, color}, sorted by amount desc
     """
+    # Fixed palette — order is stable, assigned by category rank (largest slice first).
+    OUTFLOW_PALETTE = [
+        '#6366f1', '#10b981', '#f59e0b', '#ef4444',
+        '#3b82f6', '#8b5cf6', '#06b6d4', '#f97316',
+        '#ec4899', '#84cc16',
+    ]
+
     db = get_db()
     start, end = _month_bounds(year, month)
 
@@ -104,7 +111,7 @@ def get_cashbook_kpis(year: int, month: int) -> dict:
 
     cash_received = 0.0
     total_outflow = 0.0
-    outflow_by_category = {}
+    raw_by_category = {}   # category -> amount (built first, palette assigned after)
 
     for d in docs:
         data = d.to_dict()
@@ -115,16 +122,26 @@ def get_cashbook_kpis(year: int, month: int) -> dict:
         elif entry_type == 'outflow':
             total_outflow += amount
             cat = data.get('category', 'Uncategorised') or 'Uncategorised'
-            outflow_by_category[cat] = outflow_by_category.get(cat, 0.0) + amount
+            raw_by_category[cat] = raw_by_category.get(cat, 0.0) + amount
 
-    # Round category values
-    outflow_by_category = {k: round(v, 2) for k, v in outflow_by_category.items()}
+    # Sort by amount descending so the largest slice always gets the first palette colour.
+    # Assign color here in Python — this list is the single source of truth for both
+    # the HTML legend rows and the Chart.js backgroundColor array.
+    sorted_cats = sorted(raw_by_category.items(), key=lambda x: x[1], reverse=True)
+    outflow_chart_data = [
+        {
+            'category': cat,
+            'amount':   round(amt, 2),
+            'color':    OUTFLOW_PALETTE[i % len(OUTFLOW_PALETTE)],
+        }
+        for i, (cat, amt) in enumerate(sorted_cats)
+    ]
 
     return {
-        'cash_received': round(cash_received, 2),
-        'total_outflow': round(total_outflow, 2),
-        'net_cash_flow': round(cash_received - total_outflow, 2),
-        'outflow_by_category': outflow_by_category,
+        'cash_received':      round(cash_received, 2),
+        'total_outflow':      round(total_outflow, 2),
+        'net_cash_flow':      round(cash_received - total_outflow, 2),
+        'outflow_chart_data': outflow_chart_data,
     }
 
 
@@ -362,7 +379,7 @@ def get_dashboard_data(year: int, month: int) -> dict:
         'top_sold_products':    inventory['top_sold_products'],
 
         # Money detail
-        'outflow_by_category':  cashbook_kpis['outflow_by_category'],
+        'outflow_chart_data':   cashbook_kpis['outflow_chart_data'],
         'total_outflow':        cashbook_kpis['total_outflow'],
         'open_purchase_orders': open_pos,
     }
