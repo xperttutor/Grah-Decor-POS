@@ -72,12 +72,16 @@ def purchase_add():
         name = item_names[i].strip()
         if not name:
             continue
-        qty = quantities[i] if i < len(quantities) else 0
-        cost = unit_costs[i] if i < len(unit_costs) else 0
+        try:
+            qty  = float(quantities[i]) if i < len(quantities) and quantities[i] else 0.0
+            cost = float(unit_costs[i])  if i < len(unit_costs)  and unit_costs[i]  else 0.0
+        except (ValueError, TypeError):
+            flash('Invalid quantity or unit cost — only numbers are allowed.', 'error')
+            return redirect(url_for('purchase.purchase_list'))
         items.append({
             'item': name,
-            'quantity': float(qty),
-            'unit_cost': float(cost)
+            'quantity': qty,
+            'unit_cost': cost
         })
 
     if not vendor_name or not items:

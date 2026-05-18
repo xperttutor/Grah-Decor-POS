@@ -60,9 +60,15 @@ def add_settlement():
     if not order_ids:
         flash("No orders selected for settlement.", "error")
         return redirect(url_for('settlements.settlements_list'))
-        
+
     if not utr_number:
         flash("UTR Number is required.", "error")
+        return redirect(url_for('settlements.settlements_list'))
+
+    try:
+        amount_received = float(amount_received)
+    except (ValueError, TypeError):
+        flash('Amount received must be a valid number.', 'error')
         return redirect(url_for('settlements.settlements_list'))
         
     create_payment_settlement(

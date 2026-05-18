@@ -265,14 +265,7 @@ def get_inventory_snapshot(year: int, month: int) -> dict:
                     'min_stock': min_s,
                 })
 
-    # ── 2. Raw material valuation ─────────────────────────────────────────
-    rm_docs = db.collection('raw_materials').stream()
-    raw_material_value = sum(
-        float(d.to_dict().get('quantity', 0)) * float(d.to_dict().get('price', 0))
-        for d in rm_docs
-    )
-
-    # ── 3. Top 5 sold products this month (via inventory_log) ─────────────
+    # ── 2. Top 5 sold products this month (via inventory_log) ─────────────
     month_logs = _fetch_rs_logs(year, month)
     buckets = _aggregate_logs_for_period(month_logs)
 
@@ -291,9 +284,7 @@ def get_inventory_snapshot(year: int, month: int) -> dict:
     return {
         'low_stock_items': low_stock_items,
         'stock_valuation': {
-            'ready_stock_value':   round(ready_stock_value, 2),
-            'raw_material_value':  round(raw_material_value, 2),
-            'total_value':         round(ready_stock_value + raw_material_value, 2),
+            'ready_stock_value': round(ready_stock_value, 2),
         },
         'top_sold_products': top_sold,
     }

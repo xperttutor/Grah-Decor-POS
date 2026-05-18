@@ -171,7 +171,11 @@ def process_order_return(order_id, return_type, penalty_amount, item_condition):
         return False
     
     order_data = doc.to_dict()
-    
+
+    # Guard: prevent double-processing an already-terminal return
+    if order_data.get('status') in ('RTO', 'Returned'):
+        return False
+
     # Determine new status
     new_status = 'RTO' if return_type == 'rto' else 'Returned'
     

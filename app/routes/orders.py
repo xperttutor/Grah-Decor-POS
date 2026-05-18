@@ -18,16 +18,20 @@ def parse_order_items(form):
     order_items = []
     for i in range(len(products)):
         if products[i].strip() and products[i].strip() != '__other__':
-            qty = float(quantities[i]) if i < len(quantities) and quantities[i] else 1
-            price = float(prices[i]) if i < len(prices) and prices[i] else 0
+            try:
+                qty   = float(quantities[i]) if i < len(quantities) and quantities[i] else 1.0
+                price = float(prices[i])     if i < len(prices)     and prices[i]     else 0.0
+            except (ValueError, TypeError):
+                # Skip malformed items; order_add will reject if result is empty
+                continue
             color = colors[i].strip() if i < len(colors) else ''
             if color == '__other__':
                 color = ''
             order_items.append({
-                'product': products[i].strip(),
-                'color': color,
+                'product':  products[i].strip(),
+                'color':    color,
                 'quantity': qty,
-                'price': price
+                'price':    price,
             })
     return order_items
 

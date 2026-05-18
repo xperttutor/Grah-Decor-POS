@@ -279,7 +279,7 @@ def mark_po_paid(po_id, payment_id):
         return False
     data = doc.to_dict()
 
-    if data.get('status') == 'Paid':
+    if data.get('status') == 'Paid' or data.get('payment_status') == 'paid':
         return False
 
     now = datetime.now(timezone.utc)
@@ -711,9 +711,7 @@ def partial_pay_po(
     if new_status != old_status:
         firestore_update['status'] = new_status
 
-    db.collection('purchase_orders').document(po_id).update(firestore_update)
-
-    # ── 6. Cashbook entry ────────────────────────────────────────────────────
+    # ── 5. Cashbook entry FIRST — if this fails, the PO is not marked paid ──────
     add_cashbook_entry(
         entry_type='outflow',
         category='Purchase',
@@ -721,6 +719,9 @@ def partial_pay_po(
         amount=total_cash_out,   # one combined outflow
         reference_id=po_id,
     )
+
+    # ── 6. Firestore update — only after cashbook is safely written ───────────
+    db.collection('purchase_orders').document(po_id).update(firestore_update)
 
     return {
         'success':        True,
