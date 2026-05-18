@@ -4,10 +4,7 @@ from google.cloud.firestore_v1 import FieldFilter
 from app import get_db
 from app.services.snapshot_service import (
     _month_bounds,
-    _fetch_rs_logs,
     _aggregate_logs_for_period,
-    get_ready_stock_snapshot,
-    get_ready_stock_snapshot_live,
 )
 
 
@@ -22,8 +19,8 @@ def _prev_month(year: int, month: int):
 
 def _iter_last_n_months(year: int, month: int, n: int):
     """
-    Yield (year, month) tuples for the last `n` months ending at (year, month),
-    inclusive, oldest first.
+    Return a list of (year, month) tuples for the last `n` months ending at
+    (year, month), inclusive, oldest first.
     """
     months = []
     y, m = year, month
@@ -34,22 +31,31 @@ def _iter_last_n_months(year: int, month: int, n: int):
     return months
 
 
+def _fetch_rs_logs_bounded(start: datetime, end: datetime) -> list:
+    """Fetch Ready Stock inventory_log entries between start and end datetimes."""
+    db = get_db()
+    docs = (
+        db.collection('inventory_log')
+        .where(filter=FieldFilter('item_type', '==', 'Ready Stock'))
+        .where(filter=FieldFilter('date', '>=', start))
+        .where(filter=FieldFilter('date', '<=', end))
+        .stream()
+    )
+    return [{'id': d.id, **d.to_dict()} for d in docs]
+
+
 # ── KPI Cards ─────────────────────────────────────────────────────────────────
 
-def get_order_kpis(year: int, month: int) -> dict:
+def get_order_kpis(start: datetime, end: datetime) -> dict:
     """
-    Query `orders` collection for the given month and compute:
+    Query `orders` collection for the given date range and compute:
       - total_orders:         count of all orders
       - expected_revenue:     sum of bank_settlement for non-cancelled/non-RTO orders
       - status_counts:        {status: count} for every status present
-      - return_rate:          (Returned + RTO) / total_orders * 100
-      - rto_rate:             RTO / total_orders * 100
+      - return_rate:          (Returned + RTO) / dispatched_orders * 100
+      - rto_rate:             RTO / dispatched_orders * 100
     """
     db = get_db()
-    # orders.date is stored as a Firestore Timestamp (UTC datetime), not a string.
-    # Use datetime objects for both bounds — identical pattern to cashbook queries.
-    start, end = _month_bounds(year, month)
-
     docs = (
         db.collection('orders')
         .where(filter=FieldFilter('date', '>=', start))
@@ -72,27 +78,28 @@ def get_order_kpis(year: int, month: int) -> dict:
 
     returned = status_counts.get('Returned', 0)
     rto = status_counts.get('RTO', 0)
-    return_rate = round((returned + rto) / total_orders * 100, 1) if total_orders else 0.0
-    rto_rate = round(rto / total_orders * 100, 1) if total_orders else 0.0
+    cancelled = status_counts.get('Cancelled', 0)
+    dispatched_orders = total_orders - cancelled
+    return_rate = round((returned + rto) / dispatched_orders * 100, 1) if dispatched_orders else 0.0
+    rto_rate    = round(rto / dispatched_orders * 100, 1) if dispatched_orders else 0.0
 
     return {
-        'total_orders': total_orders,
+        'total_orders':     total_orders,
         'expected_revenue': round(expected_revenue, 2),
-        'status_counts': status_counts,
-        'return_rate': return_rate,
-        'rto_rate': rto_rate,
+        'status_counts':    status_counts,
+        'return_rate':      return_rate,
+        'rto_rate':         rto_rate,
     }
 
 
-def get_cashbook_kpis(year: int, month: int) -> dict:
+def get_cashbook_kpis(start: datetime, end: datetime) -> dict:
     """
-    Query `cashbook` collection for the given month and compute:
+    Query `cashbook` collection for the given date range and compute:
       - cash_received:       sum of inflow amounts
       - total_outflow:       sum of outflow amounts
       - net_cash_flow:       cash_received - total_outflow
       - outflow_chart_data:  list of {category, amount, color}, sorted by amount desc
     """
-    # Fixed palette — order is stable, assigned by category rank (largest slice first).
     OUTFLOW_PALETTE = [
         '#6366f1', '#10b981', '#f59e0b', '#ef4444',
         '#3b82f6', '#8b5cf6', '#06b6d4', '#f97316',
@@ -100,8 +107,6 @@ def get_cashbook_kpis(year: int, month: int) -> dict:
     ]
 
     db = get_db()
-    start, end = _month_bounds(year, month)
-
     docs = (
         db.collection('cashbook')
         .where(filter=FieldFilter('date', '>=', start))
@@ -111,7 +116,7 @@ def get_cashbook_kpis(year: int, month: int) -> dict:
 
     cash_received = 0.0
     total_outflow = 0.0
-    raw_by_category = {}   # category -> amount (built first, palette assigned after)
+    raw_by_category = {}
 
     for d in docs:
         data = d.to_dict()
@@ -124,9 +129,7 @@ def get_cashbook_kpis(year: int, month: int) -> dict:
             cat = data.get('category', 'Uncategorised') or 'Uncategorised'
             raw_by_category[cat] = raw_by_category.get(cat, 0.0) + amount
 
-    # Sort by amount descending so the largest slice always gets the first palette colour.
-    # Assign color here in Python — this list is the single source of truth for both
-    # the HTML legend rows and the Chart.js backgroundColor array.
+    # Sort by amount descending — largest slice always gets first palette colour.
     sorted_cats = sorted(raw_by_category.items(), key=lambda x: x[1], reverse=True)
     outflow_chart_data = [
         {
@@ -145,23 +148,23 @@ def get_cashbook_kpis(year: int, month: int) -> dict:
     }
 
 
-# ── Revenue Trend (last 6 months) ─────────────────────────────────────────────
+# ── Revenue Trend (last 6 months — always month-anchored) ─────────────────────
 
 def get_revenue_trend(year: int, month: int, n_months: int = 6) -> list:
     """
     Return a list of dicts for the last `n_months` ending at (year, month), inclusive.
-    Each dict:  {month_label, month_key, expected_revenue}
+    Each dict: {month_label, month_key, expected_revenue}
 
-    Strategy: fetch ALL orders across the full 6-month window in a single Firestore
-    query (bounded by start of oldest month → end of current month), then group
-    by order date in Python. This avoids 6 separate round-trips to Firestore.
+    Always anchored to the selected/current calendar month regardless of any
+    custom date range — the custom range only affects bar highlighting in the
+    template, not the data fetched here.
     """
     db = get_db()
-    month_list = _iter_last_n_months(year, month, n_months)  # [(y,m), ...]
+    month_list = _iter_last_n_months(year, month, n_months)
 
     oldest_year, oldest_month = month_list[0]
     window_start, _ = _month_bounds(oldest_year, oldest_month)
-    _, window_end = _month_bounds(year, month)
+    _, window_end   = _month_bounds(year, month)
 
     docs = (
         db.collection('orders')
@@ -172,24 +175,20 @@ def get_revenue_trend(year: int, month: int, n_months: int = 6) -> list:
 
     EXCLUDED_FROM_REVENUE = {'Cancelled', 'RTO'}
 
-    # Accumulate revenue per month_key
     revenue_map = {}   # 'YYYY-MM' → float
     for d in docs:
         data = d.to_dict()
-        status = data.get('status', '')
-        if status in EXCLUDED_FROM_REVENUE:
+        if data.get('status', '') in EXCLUDED_FROM_REVENUE:
             continue
-        order_date = data.get('date')   # stored as Firestore Timestamp / datetime
+        order_date = data.get('date')
         if order_date is None:
             continue
-        # Firestore Timestamps have strftime via datetime interface
         try:
             mk = order_date.strftime('%Y-%m')
         except AttributeError:
             continue
         revenue_map[mk] = revenue_map.get(mk, 0.0) + float(data.get('bank_settlement', 0) or 0)
 
-    # Build ordered result list matching month_list
     trend = []
     for y, m in month_list:
         mk = f'{y:04d}-{m:02d}'
@@ -205,24 +204,22 @@ def get_revenue_trend(year: int, month: int, n_months: int = 6) -> list:
 
 # ── Inventory Panel ───────────────────────────────────────────────────────────
 
-def get_inventory_snapshot(year: int, month: int) -> dict:
+def get_inventory_snapshot(start: datetime, end: datetime) -> dict:
     """
     Returns:
-      - low_stock_items:    list of ready_stock docs where quantity <= min_stock
-                            (only items with min_stock > 0)
-      - stock_valuation:    {ready_stock_value, raw_material_value, total_value}
-      - top_sold_products:  top 5 SKUs by sold_qty from inventory_log this month
+      - low_stock_items:    list of ready_stock items where qty <= min_stock (always live)
+      - stock_valuation:    {ready_stock_value} (always live)
+      - top_sold_products:  top 5 SKUs by sold_qty from inventory_log for exact date range
     """
     db = get_db()
 
-    # ── 1. Low stock alerts + valuation (ready stock) ─────────────────────
+    # ── 1. Low stock alerts + valuation (always live — not date-filtered) ──
     rs_docs = list(db.collection('ready_stock').stream())
     rs_items = [{'id': d.id, **d.to_dict()} for d in rs_docs]
 
     ready_stock_value = 0.0
     low_stock_items = []
 
-    # Build a parent→children map to avoid double-counting parent aggregates
     parents = {}
     variants_by_parent = {}
     for item in rs_items:
@@ -235,15 +232,13 @@ def get_inventory_snapshot(year: int, month: int) -> dict:
     for item_id, item in parents.items():
         children = variants_by_parent.get(item_id, [])
         if children:
-            # Parent with variants: value = sum of children (each child has its own cost_price or inherits)
             for child in children:
-                qty = float(child.get('quantity', 0))
+                qty  = float(child.get('quantity', 0))
                 cost = float(child.get('cost_price', 0) or item.get('cost_price', 0))
                 ready_stock_value += qty * cost
-            # Low stock: check each variant independently
             for child in children:
                 min_s = int(child.get('min_stock', 0) or 0)
-                qty = float(child.get('quantity', 0))
+                qty   = float(child.get('quantity', 0))
                 if min_s > 0 and qty <= min_s:
                     low_stock_items.append({
                         'name':      item.get('name', ''),
@@ -252,8 +247,7 @@ def get_inventory_snapshot(year: int, month: int) -> dict:
                         'min_stock': min_s,
                     })
         else:
-            # Simple item (no children)
-            qty = float(item.get('quantity', 0))
+            qty  = float(item.get('quantity', 0))
             cost = float(item.get('cost_price', 0))
             ready_stock_value += qty * cost
             min_s = int(item.get('min_stock', 0) or 0)
@@ -265,11 +259,10 @@ def get_inventory_snapshot(year: int, month: int) -> dict:
                     'min_stock': min_s,
                 })
 
-    # ── 2. Top 5 sold products this month (via inventory_log) ─────────────
-    month_logs = _fetch_rs_logs(year, month)
-    buckets = _aggregate_logs_for_period(month_logs)
+    # ── 2. Top 5 sold products for the exact date range ───────────────────
+    logs    = _fetch_rs_logs_bounded(start, end)
+    buckets = _aggregate_logs_for_period(logs)
 
-    # Sort by sold_qty descending; take top 5
     sold_sorted = sorted(buckets.values(), key=lambda b: b['sold'], reverse=True)
     top_sold = []
     for b in sold_sorted[:5]:
@@ -296,7 +289,6 @@ def get_open_purchase_orders() -> list:
     """
     Return all purchase_orders where payment_status != 'paid' and
     status not in terminal states (Cancelled, Returned).
-    Each dict:  {po_number, vendor_name, total_cost, amount_paid, balance_due, payment_status}
     """
     db = get_db()
     TERMINAL_PO = {'Cancelled', 'Returned'}
@@ -320,35 +312,67 @@ def get_open_purchase_orders() -> list:
             'status':         data.get('status', '—'),
         })
 
-    # Sort by balance_due descending so largest debts are shown first
     open_pos.sort(key=lambda p: p['balance_due'], reverse=True)
     return open_pos
 
 
 # ── Master aggregator ──────────────────────────────────────────────────────────
 
-def get_dashboard_data(year: int, month: int) -> dict:
+def get_dashboard_data(year: int, month: int,
+                       custom_start: datetime = None,
+                       custom_end: datetime = None) -> dict:
     """
     Single entry point for the dashboard route.
-    Calls each sub-aggregator and merges results into one context dict.
-    """
-    order_kpis     = get_order_kpis(year, month)
-    cashbook_kpis  = get_cashbook_kpis(year, month)
-    revenue_trend  = get_revenue_trend(year, month, n_months=6)
-    inventory      = get_inventory_snapshot(year, month)
-    open_pos       = get_open_purchase_orders()
 
-    # Build month metadata for the template
-    month_dt    = datetime(year, month, 1)
-    month_label = month_dt.strftime('%B %Y')
-    month_key   = f'{year:04d}-{month:02d}'
+    If custom_start/custom_end are provided, all date-filtered sections
+    (KPIs, cashbook, top sold) use the exact custom date range.
+    The Revenue Trend chart always shows the last 6 months anchored to
+    (year, month) — bars within the custom range are highlighted via
+    'highlighted_months' passed to the template.
+    """
+    if custom_start and custom_end:
+        start     = custom_start
+        end       = custom_end
+        is_custom = True
+    else:
+        start, end = _month_bounds(year, month)
+        is_custom  = False
+
+    order_kpis    = get_order_kpis(start, end)
+    cashbook_kpis = get_cashbook_kpis(start, end)
+    revenue_trend = get_revenue_trend(year, month, n_months=6)
+    inventory     = get_inventory_snapshot(start, end)
+    open_pos      = get_open_purchase_orders()
+
+    # Build highlighted_months: all 'YYYY-MM' keys touched by [start, end]
+    highlighted_months = set()
+    if is_custom:
+        cur = datetime(start.year, start.month, 1, tzinfo=timezone.utc)
+        while cur <= end:
+            highlighted_months.add(cur.strftime('%Y-%m'))
+            if cur.month == 12:
+                cur = datetime(cur.year + 1, 1, 1, tzinfo=timezone.utc)
+            else:
+                cur = datetime(cur.year, cur.month + 1, 1, tzinfo=timezone.utc)
+    else:
+        highlighted_months.add(f'{year:04d}-{month:02d}')
+
+    # Human-readable label for the page header
+    if is_custom:
+        display_label = f"{start.strftime('%d %b %Y')} → {end.strftime('%d %b %Y')}"
+    else:
+        display_label = datetime(year, month, 1).strftime('%B %Y')
+
+    month_key = f'{year:04d}-{month:02d}'
 
     return {
-        # Month context
-        'month_label':          month_label,
+        # Period context
+        'month_label':          display_label,
         'month_key':            month_key,
         'selected_year':        year,
         'selected_month':       month,
+        'is_custom_range':      is_custom,
+        'highlighted_months':   list(highlighted_months),
 
         # KPI Cards
         'total_orders':         order_kpis['total_orders'],
@@ -356,12 +380,12 @@ def get_dashboard_data(year: int, month: int) -> dict:
         'cash_received':        cashbook_kpis['cash_received'],
         'net_cash_flow':        cashbook_kpis['net_cash_flow'],
 
-        # Order status breakdown (for chart + rates)
+        # Order status breakdown
         'status_counts':        order_kpis['status_counts'],
         'return_rate':          order_kpis['return_rate'],
         'rto_rate':             order_kpis['rto_rate'],
 
-        # Revenue trend (for bar chart)
+        # Revenue trend
         'revenue_trend':        revenue_trend,
 
         # Inventory panel

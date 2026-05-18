@@ -4,15 +4,31 @@
 {% block content %}
 
 <!-- ── Page Header ─────────────────────────────────────────────────────── -->
-<div class="page-header">
+<div class="page-header" style="flex-wrap:wrap; gap:0.75rem;">
     <h1>📊 Dashboard</h1>
-    <!-- Month Navigator -->
+
+    <!-- Month Navigator (hidden when custom range is active) -->
+    {% if not is_custom_range %}
     <div style="display:flex; align-items:center; gap:0.5rem;">
         <a href="{{ url_for('dashboard.dashboard', month=prev_month_key) }}" class="btn btn-sm" id="btn-prev-month">← Prev</a>
         <span style="font-weight:600; font-size:0.95rem; min-width:110px; text-align:center;">{{ month_label }}</span>
         <a href="{{ url_for('dashboard.dashboard', month=next_month_key) }}" class="btn btn-sm" id="btn-next-month">Next →</a>
         <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-sm btn-outline-primary" id="btn-current-month">Today</a>
     </div>
+    {% else %}
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+        <span style="font-weight:600; font-size:0.95rem; color:var(--primary);">📅 {{ month_label }}</span>
+        <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-sm btn-outline-primary">✕ Clear</a>
+    </div>
+    {% endif %}
+
+    <!-- Custom Date Range Picker -->
+    <form method="get" action="{{ url_for('dashboard.dashboard') }}" style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+        <input type="date" name="date_from" value="{{ filter_date_from }}" class="form-control" style="width:145px; font-size:0.83rem; padding:0.3rem 0.5rem;">
+        <span style="color:var(--text-muted); font-size:0.85rem;">→</span>
+        <input type="date" name="date_to"   value="{{ filter_date_to }}"   class="form-control" style="width:145px; font-size:0.83rem; padding:0.3rem 0.5rem;">
+        <button type="submit" class="btn btn-sm" style="white-space:nowrap;">Filter</button>
+    </form>
 </div>
 
 <!-- ── KPI Cards ───────────────────────────────────────────────────────── -->
@@ -121,7 +137,7 @@
         <div>
             <div class="form-section-title">🏆 Top 5 Sold — {{ month_label }}</div>
             {% if top_sold_products %}
-            {% set max_sold = top_sold_products[0].sold_qty if top_sold_products else 1 %}
+            {% set max_sold = (top_sold_products[0].sold_qty if top_sold_products else 0) or 1 %}
             <div style="display:flex; flex-direction:column; gap:0.5rem;">
                 {% for item in top_sold_products %}
                 <div style="font-size:0.82rem;">
@@ -245,9 +261,13 @@
     Chart.defaults.color       = '#6b7280';
 
     // ── 1. Revenue Trend Bar Chart ───────────────────────────────────────
-    const trendData    = {{ revenue_trend | tojson }};
+    const trendData         = {{ revenue_trend | tojson }};
+    const highlightedMonths = new Set({{ highlighted_months | tojson }});
     const trendLabels  = trendData.map(d => d.month_label);
     const trendValues  = trendData.map(d => d.expected_revenue);
+    const trendColors  = trendData.map(d =>
+        highlightedMonths.has(d.month_key) ? PRIMARY : 'rgba(99,102,241,0.25)'
+    );
 
     const revenueCtx = document.getElementById('revenueChart');
     if (revenueCtx) {
@@ -258,9 +278,7 @@
                 datasets: [{
                     label: 'Expected Revenue (₹)',
                     data: trendValues,
-                    backgroundColor: trendLabels.map((_, i) =>
-                        i === trendLabels.length - 1 ? PRIMARY : 'rgba(99,102,241,0.35)'
-                    ),
+                    backgroundColor: trendColors,
                     borderColor: PRIMARY,
                     borderWidth: 1.5,
                     borderRadius: 5,
