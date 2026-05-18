@@ -329,16 +329,22 @@ def cancel_po(po_id):
         return True
 
     now = datetime.now(timezone.utc)
-    db.collection('purchase_orders').document(po_id).update({
+
+    # Preserve payment history if the PO was already paid; only zero out if it was never paid.
+    already_paid = data.get('payment_status') == 'paid'
+    cancel_update = {
         'status':           'Cancelled',
-        # ── Phase 1: cancellation zeroes out pending payments ─────────
         'inventory_status': 'returned',
-        'payment_status':   'unpaid',
         'balance_due':      0.0,
-        # ────────────────────────────────────────────────────────────────
         'updated_at':       now,
         'status_history':   ArrayUnion([{'status': 'Cancelled', 'timestamp': now.isoformat()}]),
-    })
+    }
+    if already_paid:
+        cancel_update['cancellation_refunded'] = True   # refund logged below; payment_status kept
+    else:
+        cancel_update['payment_status'] = 'unpaid'
+
+    db.collection('purchase_orders').document(po_id).update(cancel_update)
 
     # If it was received / paid → reverse inventory
     if old_status in ['Received', 'Paid']:

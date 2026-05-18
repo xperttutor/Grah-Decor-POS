@@ -226,7 +226,7 @@ def get_customer_lifetime_value(customer_id):
           .stream()
     )
     total = 0.0
-    settled_statuses = {'Delivered', 'Settled'}
+    settled_statuses = {'Settled'}
     for d in docs:
         data = d.to_dict()
         if data.get('status') in settled_statuses:
