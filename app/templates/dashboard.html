@@ -10,10 +10,13 @@
     <!-- Month Navigator (hidden when custom range is active) -->
     {% if not is_custom_range %}
     <div style="display:flex; align-items:center; gap:0.5rem;">
-        <a href="{{ url_for('dashboard.dashboard', month=prev_month_key) }}" class="btn btn-sm" id="btn-prev-month">← Prev</a>
+        <a href="{{ url_for('dashboard.dashboard', month=prev_month_key) }}" class="btn btn-sm" id="btn-prev-month">←
+            Prev</a>
         <span style="font-weight:600; font-size:0.95rem; min-width:110px; text-align:center;">{{ month_label }}</span>
-        <a href="{{ url_for('dashboard.dashboard', month=next_month_key) }}" class="btn btn-sm" id="btn-next-month">Next →</a>
-        <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-sm btn-outline-primary" id="btn-current-month">Today</a>
+        <a href="{{ url_for('dashboard.dashboard', month=next_month_key) }}" class="btn btn-sm" id="btn-next-month">Next
+            →</a>
+        <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-sm btn-outline-primary"
+            id="btn-current-month">This Month</a>
     </div>
     {% else %}
     <div style="display:flex; align-items:center; gap:0.5rem;">
@@ -23,10 +26,13 @@
     {% endif %}
 
     <!-- Custom Date Range Picker -->
-    <form method="get" action="{{ url_for('dashboard.dashboard') }}" style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
-        <input type="date" name="date_from" value="{{ filter_date_from }}" class="form-control" style="width:145px; font-size:0.83rem; padding:0.3rem 0.5rem;">
+    <form method="get" action="{{ url_for('dashboard.dashboard') }}"
+        style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+        <input type="date" name="date_from" value="{{ filter_date_from }}" class="form-control"
+            style="width:145px; font-size:0.83rem; padding:0.3rem 0.5rem;">
         <span style="color:var(--text-muted); font-size:0.85rem;">→</span>
-        <input type="date" name="date_to"   value="{{ filter_date_to }}"   class="form-control" style="width:145px; font-size:0.83rem; padding:0.3rem 0.5rem;">
+        <input type="date" name="date_to" value="{{ filter_date_to }}" class="form-control"
+            style="width:145px; font-size:0.83rem; padding:0.3rem 0.5rem;">
         <button type="submit" class="btn btn-sm" style="white-space:nowrap;">Filter</button>
     </form>
 </div>
@@ -44,7 +50,8 @@
         <span class="dash-card-icon">💳</span>
         <div class="dash-card-label">Expected Revenue</div>
         <div class="dash-card-value">₹{{ '{:,.0f}'.format(expected_revenue) }}</div>
-        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.25rem;">bank_settlement (excl. Cancelled & RTO)</div>
+        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.25rem;">bank_settlement (excl. Cancelled &
+            RTO)</div>
     </div>
 
     <div class="dash-card card-inflow" id="kpi-cash-received">
@@ -68,7 +75,9 @@
 
     <!-- Revenue Trend Bar Chart -->
     <div class="form-card" id="section-revenue-trend" style="margin-bottom:0;">
-        <h3 style="margin-bottom:1rem;">📅 Monthly Revenue Trend <span style="font-weight:400; color:var(--text-muted); font-size:0.78rem;">(last 6 months — expected)</span></h3>
+        <h3 style="margin-bottom:1rem;">📅 Monthly Revenue Trend <span
+                style="font-weight:400; color:var(--text-muted); font-size:0.78rem;">(last 6 months — expected)</span>
+        </h3>
         <div style="position:relative; height:220px;">
             <canvas id="revenueChart"></canvas>
         </div>
@@ -108,7 +117,8 @@
 
         <!-- Stock Valuation -->
         <div style="margin-bottom:1rem;">
-            <div class="summary-item" style="flex-direction:column; align-items:flex-start; gap:0.15rem; display:inline-flex;">
+            <div class="summary-item"
+                style="flex-direction:column; align-items:flex-start; gap:0.15rem; display:inline-flex;">
                 <span class="summary-label">Ready Stock Value</span>
                 <span class="summary-value">₹{{ '{:,.0f}'.format(stock_valuation.ready_stock_value) }}</span>
             </div>
@@ -120,16 +130,20 @@
             {% if low_stock_items %}
             <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:150px; overflow-y:auto;">
                 {% for item in low_stock_items %}
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem; background:var(--warning-light); border:1px solid #fde68a; border-radius:6px; font-size:0.82rem;">
+                <div
+                    style="display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem; background:var(--warning-light); border:1px solid #fde68a; border-radius:6px; font-size:0.82rem;">
                     <span style="font-weight:500;">
-                        {{ item.name }}{% if item.color %} <span style="color:var(--text-muted);">({{ item.color }})</span>{% endif %}
+                        {{ item.name }}{% if item.color %} <span style="color:var(--text-muted);">({{ item.color
+                            }})</span>{% endif %}
                     </span>
-                    <span style="color:var(--danger); font-weight:700;">{{ item.quantity|int }} / {{ item.min_stock }}</span>
+                    <span style="color:var(--danger); font-weight:700;">{{ item.quantity|int }} / {{ item.min_stock
+                        }}</span>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">All items are adequately stocked.</p>
+            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">All items are adequately stocked.
+            </p>
             {% endif %}
         </div>
 
@@ -146,13 +160,16 @@
                         <span style="font-weight:700; color:var(--primary);">{{ item.sold_qty|int }} units</span>
                     </div>
                     <div style="height:5px; background:var(--border); border-radius:99px; overflow:hidden;">
-                        <div style="height:100%; background:var(--primary); border-radius:99px; width:{{ ((item.sold_qty / max_sold) * 100)|round|int }}%;"></div>
+                        <div
+                            style="height:100%; background:var(--primary); border-radius:99px; width:{{ ((item.sold_qty / max_sold) * 100)|round|int }}%;">
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No sales recorded for this period.</p>
+            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No sales recorded for this period.
+            </p>
             {% endif %}
         </div>
     </div>
@@ -174,20 +191,25 @@
                     {% for item in outflow_chart_data %}
                     <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;">
                         <span style="display:flex; align-items:center; gap:0.4rem;">
-                            <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block;background:{{ item.color }};"></span>
+                            <span
+                                style="width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block;background:{{ item.color }};"></span>
                             {{ item.category }}
                         </span>
-                        <span style="font-weight:600; white-space:nowrap; margin-left:0.5rem;">₹{{ '{:,.0f}'.format(item.amount) }}</span>
+                        <span style="font-weight:600; white-space:nowrap; margin-left:0.5rem;">₹{{
+                            '{:,.0f}'.format(item.amount) }}</span>
                     </div>
                     {% endfor %}
-                    <div style="border-top:1px solid var(--border); padding-top:0.35rem; margin-top:0.15rem; display:flex; justify-content:space-between; font-size:0.82rem;">
+                    <div
+                        style="border-top:1px solid var(--border); padding-top:0.35rem; margin-top:0.15rem; display:flex; justify-content:space-between; font-size:0.82rem;">
                         <span style="color:var(--text-secondary); font-weight:600;">Total Outflow</span>
-                        <span style="font-weight:700; color:var(--danger);">₹{{ '{:,.0f}'.format(total_outflow) }}</span>
+                        <span style="font-weight:700; color:var(--danger);">₹{{ '{:,.0f}'.format(total_outflow)
+                            }}</span>
                     </div>
                 </div>
             </div>
             {% else %}
-            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No outflows recorded this month.</p>
+            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No outflows recorded this month.
+            </p>
             {% endif %}
         </div>
 
@@ -212,9 +234,9 @@
                             <td style="font-weight:500;">{{ po.vendor_name }}</td>
                             <td>
                                 {% if po.payment_status == 'partially_paid' %}
-                                    <span class="badge badge-pending">Part Paid</span>
+                                <span class="badge badge-pending">Part Paid</span>
                                 {% else %}
-                                    <span class="badge badge-rto">Unpaid</span>
+                                <span class="badge badge-rto">Unpaid</span>
                                 {% endif %}
                             </td>
                             <td class="text-right" style="font-weight:700; color:var(--danger);">
@@ -226,7 +248,8 @@
                 </table>
             </div>
             {% else %}
-            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No outstanding purchase orders.</p>
+            <p style="font-size:0.83rem; color:var(--text-muted); font-style:italic;">No outstanding purchase orders.
+            </p>
             {% endif %}
         </div>
     </div>
@@ -239,33 +262,34 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-(function () {
-    'use strict';
+    (function () {
+        'use strict';
 
-    // ── Shared palette (matches CSS vars) ───────────────────────────────
-    const PRIMARY   = '#6366f1';
-    const SUCCESS   = '#10b981';
-    const DANGER    = '#ef4444';
-    const WARNING   = '#f59e0b';
-    const MUTED     = '#9ca3af';
-    const BORDER    = '#e5e7eb';
+        // ── Shared palette (matches CSS vars) ───────────────────────────────
+        const PRIMARY = '#6366f1';
+        const SUCCESS = '#10b981';
+        const DANGER = '#ef4444';
+        const WARNING = '#f59e0b';
+        const MUTED = '#9ca3af';
+        const BORDER = '#e5e7eb';
 
-    const CATEGORY_PALETTE = [
-        '#6366f1', '#10b981', '#f59e0b', '#ef4444',
-        '#3b82f6', '#8b5cf6', '#06b6d4', '#f97316',
-        '#ec4899', '#84cc16',
-    ];
+        const CATEGORY_PALETTE = [
+            '#6366f1', '#10b981', '#f59e0b', '#ef4444',
+            '#3b82f6', '#8b5cf6', '#06b6d4', '#f97316',
+            '#ec4899', '#84cc16',
+        ];
 
-    Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
-    Chart.defaults.font.size   = 12;
-    Chart.defaults.color       = '#6b7280';
+        Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
+        Chart.defaults.font.size = 12;
+        Chart.defaults.color = '#6b7280';
 
-    // ── 1. Revenue Trend Bar Chart ───────────────────────────────────────
-    const trendData         = {{ revenue_trend | tojson }};
+        // ── 1. Revenue Trend Bar Chart ───────────────────────────────────────
+        const trendData = {{ revenue_trend | tojson
+    }};
     const highlightedMonths = new Set({{ highlighted_months | tojson }});
-    const trendLabels  = trendData.map(d => d.month_label);
-    const trendValues  = trendData.map(d => d.expected_revenue);
-    const trendColors  = trendData.map(d =>
+    const trendLabels = trendData.map(d => d.month_label);
+    const trendValues = trendData.map(d => d.expected_revenue);
+    const trendColors = trendData.map(d =>
         highlightedMonths.has(d.month_key) ? PRIMARY : 'rgba(99,102,241,0.25)'
     );
 
@@ -312,16 +336,16 @@
 
     // ── 2. Order Status Horizontal Bar Chart ─────────────────────────────
     const statusCounts = {{ status_counts | tojson }};
-    const statusCtx    = document.getElementById('statusChart');
+    const statusCtx = document.getElementById('statusChart');
 
     const STATUS_COLORS = {
-        'Pending':   WARNING,
-        'Shipped':   '#3b82f6',
+        'Pending': WARNING,
+        'Shipped': '#3b82f6',
         'Delivered': SUCCESS,
-        'Settled':   '#059669',
+        'Settled': '#059669',
         'Cancelled': MUTED,
-        'Returned':  DANGER,
-        'RTO':       '#dc2626',
+        'Returned': DANGER,
+        'RTO': '#dc2626',
     };
 
     if (statusCtx && Object.keys(statusCounts).length) {
@@ -371,15 +395,15 @@
     // The same list drives both the legend HTML (rendered by Jinja2 above) and the
     // Chart.js dataset here — color[i] is guaranteed identical in both places.
     const outflowItems = {{ outflow_chart_data | tojson }};
-    const outflowCtx   = document.getElementById('outflowChart');
+    const outflowCtx = document.getElementById('outflowChart');
 
     if (outflowCtx && outflowItems.length) {
         new Chart(outflowCtx, {
             type: 'doughnut',
             data: {
-                labels:   outflowItems.map(d => d.category),
+                labels: outflowItems.map(d => d.category),
                 datasets: [{
-                    data:            outflowItems.map(d => d.amount),
+                    data: outflowItems.map(d => d.amount),
                     backgroundColor: outflowItems.map(d => d.color),
                     borderWidth: 2,
                     borderColor: '#ffffff',
@@ -402,6 +426,6 @@
         });
     }
 
-})();
+}) ();
 </script>
 {% endblock %}
