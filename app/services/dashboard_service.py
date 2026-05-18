@@ -46,12 +46,14 @@ def get_order_kpis(year: int, month: int) -> dict:
       - rto_rate:             RTO / total_orders * 100
     """
     db = get_db()
+    # orders.date is stored as a Firestore Timestamp (UTC datetime), not a string.
+    # Use datetime objects for both bounds — identical pattern to cashbook queries.
     start, end = _month_bounds(year, month)
 
     docs = (
         db.collection('orders')
-        .where(filter=FieldFilter('date', '>=', start.strftime('%Y-%m-%d')))
-        .where(filter=FieldFilter('date', '<=', end.strftime('%Y-%m-%d')))
+        .where(filter=FieldFilter('date', '>=', start))
+        .where(filter=FieldFilter('date', '<=', end))
         .stream()
     )
 
@@ -146,8 +148,8 @@ def get_revenue_trend(year: int, month: int, n_months: int = 6) -> list:
 
     docs = (
         db.collection('orders')
-        .where(filter=FieldFilter('date', '>=', window_start.strftime('%Y-%m-%d')))
-        .where(filter=FieldFilter('date', '<=', window_end.strftime('%Y-%m-%d')))
+        .where(filter=FieldFilter('date', '>=', window_start))
+        .where(filter=FieldFilter('date', '<=', window_end))
         .stream()
     )
 
@@ -160,10 +162,14 @@ def get_revenue_trend(year: int, month: int, n_months: int = 6) -> list:
         status = data.get('status', '')
         if status in EXCLUDED_FROM_REVENUE:
             continue
-        order_date_str = data.get('date', '')      # stored as 'YYYY-MM-DD' string
-        if not order_date_str or len(order_date_str) < 7:
+        order_date = data.get('date')   # stored as Firestore Timestamp / datetime
+        if order_date is None:
             continue
-        mk = order_date_str[:7]                     # 'YYYY-MM'
+        # Firestore Timestamps have strftime via datetime interface
+        try:
+            mk = order_date.strftime('%Y-%m')
+        except AttributeError:
+            continue
         revenue_map[mk] = revenue_map.get(mk, 0.0) + float(data.get('bank_settlement', 0) or 0)
 
     # Build ordered result list matching month_list
