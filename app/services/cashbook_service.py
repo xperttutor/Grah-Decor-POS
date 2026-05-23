@@ -107,7 +107,9 @@ def add_cashbook_entry(entry_type, category, description, amount, reference_id='
     if entry_date:
         if isinstance(entry_date, str):
             try:
-                dt = datetime.strptime(entry_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                dt = datetime.strptime(entry_date, '%Y-%m-%d').replace(
+                    hour=now.hour, minute=now.minute, second=now.second,
+                    microsecond=now.microsecond, tzinfo=timezone.utc)
             except (ValueError, TypeError):
                 dt = now
         else:
