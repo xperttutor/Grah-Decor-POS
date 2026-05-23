@@ -76,9 +76,10 @@ def raw_add():
 @inventory_bp.route('/raw/edit/<doc_id>', methods=['POST'])
 def raw_edit(doc_id):
     data = {}
-    # Name and Price are LOCKED — only unit can change
     if request.form.get('unit'):
         data['unit'] = request.form['unit'].strip()
+    if request.form.get('name'):
+        data['name'] = request.form['name'].strip()
     if data:
         update_raw_material(doc_id, data)
         flash('Raw material unit updated.', 'success')

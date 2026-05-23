@@ -14,6 +14,7 @@ from app.services.purchase_service import (
     partial_return_po,
     # Phase 3 — decoupled refund
     log_refund,
+    close_eligible_pos,
 )
 from app.services.inventory_service import get_all_raw_materials
 from app.services.contact_service import get_all_vendors
@@ -22,6 +23,7 @@ purchase_bp = Blueprint('purchase', __name__, url_prefix='/purchases')
 
 @purchase_bp.route('/')
 def purchase_list():
+    close_eligible_pos()
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
 

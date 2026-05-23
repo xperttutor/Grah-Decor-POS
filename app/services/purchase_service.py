@@ -251,6 +251,7 @@ def mark_po_received(po_id):
         'inventory_status': 'received',
         'items':            updated_items,
         'updated_at':       now,
+        'fully_received_at': now,
         'status_history':   ArrayUnion([{'status': 'Received', 'timestamp': now.isoformat()}]),
     })
 
@@ -292,6 +293,7 @@ def mark_po_paid(po_id, payment_id):
         'payment_status': 'paid',
         'amount_paid':    total_cost,
         'balance_due':    0.0,
+        'fully_paid_at':  now,
         # ────────────────────────────────────────────────────────────────
         'updated_at':     now,
         'status_history': ArrayUnion([{'status': 'Paid', 'timestamp': now.isoformat()}]),
@@ -564,7 +566,7 @@ def partial_receive_po(po_id: str, received_quantities: dict) -> dict:
     elif new_inv_status == 'partially_received' and old_status in ['Draft', 'Sent']:
         new_status = 'Partially Received'
 
-    db.collection('purchase_orders').document(po_id).update({
+    update_payload = {
         'items':            updated_items,
         'inventory_status': new_inv_status,
         'status':           new_status,
@@ -573,7 +575,11 @@ def partial_receive_po(po_id: str, received_quantities: dict) -> dict:
             'status':    f"Partial Receipt ({', '.join(items_updated) or 'none'})",
             'timestamp': now.isoformat(),
         }]),
-    })
+    }
+    if new_inv_status == 'received' and data.get('inventory_status') != 'received':
+        update_payload['fully_received_at'] = now
+
+    db.collection('purchase_orders').document(po_id).update(update_payload)
 
     return {
         'success':          True,
@@ -712,6 +718,9 @@ def partial_pay_po(
             'timestamp': now.isoformat(),
         }]),
     }
+    if new_pay_status == 'paid' and data.get('payment_status') != 'paid':
+        firestore_update['fully_paid_at'] = now
+
     if extra_total > 0:
         firestore_update['total_cost'] = new_total
     if new_status != old_status:
@@ -993,7 +1002,7 @@ def log_refund(po_id: str, refund_amount: float, reference: str = '') -> dict:
         'timestamp': now.isoformat(),
     }
 
-    db.collection('purchase_orders').document(po_id).update({
+    update_payload = {
         'amount_paid':     new_paid,
         'balance_due':     new_balance,
         'payment_status':  new_pay_status,
@@ -1003,7 +1012,11 @@ def log_refund(po_id: str, refund_amount: float, reference: str = '') -> dict:
             'status':    f'Refund Collected ₹{refund_amount:,.2f}',
             'timestamp': now.isoformat(),
         }]),
-    })
+    }
+    if new_pay_status == 'paid' and data.get('payment_status') != 'paid':
+        update_payload['fully_paid_at'] = now
+
+    db.collection('purchase_orders').document(po_id).update(update_payload)
 
     # Log cashbook inflow
     desc = f"Refund for {po_number} from {vendor}"
@@ -1026,3 +1039,34 @@ def log_refund(po_id: str, refund_amount: float, reference: str = '') -> dict:
             f"New balance_due: ₹{new_balance:,.2f}."
         ),
     }
+
+
+def close_eligible_pos():
+    from datetime import timedelta
+    db = get_db()
+    
+    docs = db.collection('purchase_orders').stream()
+    now = datetime.now(timezone.utc)
+    
+    for doc in docs:
+        data = doc.to_dict()
+        status = data.get('status')
+        
+        if status in ('Closed', 'Cancelled'):
+            continue
+            
+        fully_received_at = data.get('fully_received_at')
+        fully_paid_at = data.get('fully_paid_at')
+        
+        if fully_received_at and fully_paid_at:
+            closing_eligible_from = max(fully_received_at, fully_paid_at)
+            
+            if not closing_eligible_from.tzinfo:
+                closing_eligible_from = closing_eligible_from.replace(tzinfo=timezone.utc)
+                
+            if now - closing_eligible_from > timedelta(days=5):
+                db.collection('purchase_orders').document(doc.id).update({
+                    'status': 'Closed',
+                    'closed_at': now
+                })
+

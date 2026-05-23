@@ -68,7 +68,14 @@
             <tbody>
                 {% for m in raw_materials %}
                 <tr class="raw-row" data-item-index="{{ loop.index }}">
-                    <td><span class="text-bold">{{ m.name }}</span></td>
+                    <td>
+                        <form autocomplete="off" method="POST" id="form-raw-{{ m.id }}"
+                            action="{{ url_for('inventory.raw_edit', doc_id=m.id) }}" class="inline-edit-form">
+                            <input type="text" name="name" value="{{ m.name }}"
+                                class="inline-input text-bold" readonly
+                                style="pointer-events:none; border-color:transparent; background:transparent; width:100%; max-width:320px; font-weight:bold;"
+                                form="form-raw-{{ m.id }}" required>
+                    </td>
                     <td class="text-right text-bold">{{ m.quantity }}</td>
                     <td class="text-muted">{{ m.unit or '-' }}</td>
                     <td class="text-right text-bold">{{ "%.2f"|format(m.calc_price or 0) }}</td>
@@ -76,6 +83,11 @@
                     <td class="text-muted">{{ m.updated_at.strftime('%d/%m/%Y %H:%M') if m.updated_at and
                         m.updated_at.strftime else '-' }}</td>
                     <td class="actions-cell">
+                        <button type="button" class="btn btn-xs edit-raw-btn"
+                            onclick="toggleEditRaw(this)">Edit</button>
+                        <button type="submit" class="btn btn-xs save-raw-btn hidden"
+                            form="form-raw-{{ m.id }}">Save</button>
+                        </form>
                         <button type="button" class="btn btn-xs btn-ghost"
                             onclick="openRawHistoryModal('{{ m.name|escape }}')">History</button>
                     </td>
@@ -704,6 +716,20 @@
         inp.style.background = '';
         btn.classList.add('hidden');
         td.querySelector('.save-variant-btn').classList.remove('hidden');
+        inp.focus();
+    }
+
+    function toggleEditRaw(btn) {
+        const td = btn.closest('.actions-cell');
+        const tr = btn.closest('tr');
+        const inp = tr.querySelector('input[name="name"]');
+        if (!inp) return;
+        inp.removeAttribute('readonly');
+        inp.style.pointerEvents = 'auto';
+        inp.style.borderColor = '';
+        inp.style.background = '';
+        btn.classList.add('hidden');
+        td.querySelector('.save-raw-btn').classList.remove('hidden');
         inp.focus();
     }
 

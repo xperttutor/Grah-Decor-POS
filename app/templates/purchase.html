@@ -306,6 +306,9 @@
                 
                 <!-- Actions -->
                 <td class="actions-cell">
+                    {% if p.status == 'Closed' %}
+                        <button class="btn btn-xs btn-ghost" data-po="{{ p|tojson|forceescape }}" onclick="closeAllDd(); openViewPoModal(this)">View History</button>
+                    {% else %}
                     {% set amount_paid = p.total_cost - p.balance_due if p.balance_due is defined else (0 if p.payment_status == 'unpaid' else p.total_cost) %}
                     <div class="po-action-dropdown" id="dd-{{ p.id }}">
                         <button class="po-action-toggle" onclick="toggleActionDd('dd-{{ p.id }}')">
@@ -348,6 +351,7 @@
                             <button class="dd-item" data-po="{{ p|tojson|forceescape }}" onclick="closeAllDd(); openViewPoModal(this)">&#128203; View History</button>
                         </div>
                     </div>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
