@@ -6,6 +6,9 @@
     <h1>Procurement Lifecycle</h1>
     <button class="btn btn-primary" onclick="toggleForm('purchaseForm')">+ New PO</button>
 </div>
+<p class="text-muted" style="font-size: 0.85rem; margin-top: -10px; margin-bottom: 20px;">
+    ℹ️ Purchase Orders are automatically closed 5 days after full receipt and full payment. Closed orders cannot be modified.
+</p>
 
 <!-- Add Purchase Form -->
 <div class="form-card hidden" id="purchaseForm">
@@ -306,8 +309,10 @@
                 
                 <!-- Actions -->
                 <td class="actions-cell">
-                    {% if p.status == 'Closed' %}
-                        <button class="btn btn-xs btn-ghost" data-po="{{ p|tojson|forceescape }}" onclick="closeAllDd(); openViewPoModal(this)">View History</button>
+                    {% if p.status in ['Closed', 'Cancelled'] %}
+                        <button class="po-action-toggle" style="margin: 0 auto;" data-po="{{ p|tojson|forceescape }}" onclick="closeAllDd(); openViewPoModal(this)">
+                            &#128203; View History
+                        </button>
                     {% else %}
                     {% set amount_paid = p.total_cost - p.balance_due if p.balance_due is defined else (0 if p.payment_status == 'unpaid' else p.total_cost) %}
                     <div class="po-action-dropdown" id="dd-{{ p.id }}">
