@@ -99,7 +99,8 @@ def get_running_balance():
     return balance
 
 
-def add_cashbook_entry(entry_type, category, description, amount, reference_id='', source='', entry_date=None):
+def add_cashbook_entry(entry_type, category, description, amount, reference_id='', source='', entry_date=None, receipt_file=None):
+    from app.services.storage_service import upload_receipt
     db = get_db()
     now = datetime.now(timezone.utc)
     
@@ -114,6 +115,8 @@ def add_cashbook_entry(entry_type, category, description, amount, reference_id='
     else:
         dt = now
 
+    receipt_url = upload_receipt(receipt_file) if receipt_file else None
+
     db.collection('cashbook').add({
         'date': dt,
         'type': entry_type,
@@ -122,6 +125,7 @@ def add_cashbook_entry(entry_type, category, description, amount, reference_id='
         'amount': float(amount),
         'reference_id': reference_id,
         'source': source,
+        'receipt_url': receipt_url,
         'created_at': now,
     })
 

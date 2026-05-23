@@ -58,6 +58,7 @@ def add_expense():
     item_name = request.form.get('item_name', '').strip()
     notes = request.form.get('notes', '').strip()
     expense_date = request.form.get('date', '').strip()
+    receipt_file = request.files.get('receipt') or None
 
     if category == 'Other' and custom_category:
         category = custom_category
@@ -86,7 +87,8 @@ def add_expense():
         description=notes,
         amount=amount_val,
         source='manual_expense',
-        entry_date=expense_date
+        entry_date=expense_date,
+        receipt_file=receipt_file
     )
 
     flash('Manual expense logged successfully.', 'success')
