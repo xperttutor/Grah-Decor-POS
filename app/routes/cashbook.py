@@ -54,8 +54,19 @@ def dashboard():
 def add_expense():
     amount = request.form.get('amount')
     category = request.form.get('category', 'Misc')
+    custom_category = request.form.get('custom_category', '').strip()
+    item_name = request.form.get('item_name', '').strip()
     notes = request.form.get('notes', '').strip()
     expense_date = request.form.get('date', '').strip()
+
+    if category == 'Other' and custom_category:
+        category = custom_category
+
+    if item_name:
+        parts = [f"Item: {item_name}", category]
+        if notes:
+            parts.append(notes)
+        notes = " - ".join(parts)
 
     if not amount:
         flash('Amount is required.', 'error')
