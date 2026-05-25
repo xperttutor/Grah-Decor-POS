@@ -75,7 +75,7 @@ def orders_list():
     ready_stock = get_all_ready_stock()
     products = sorted(list(set(s['name'] for s in ready_stock if s.get('name'))))
     colors = sorted(list(set(s['color'] for s in ready_stock if s.get('color'))))
-    customers = get_all_customers()
+    customers, _, _ = get_all_customers()
 
     return render_template('orders.html',
                            orders=orders,

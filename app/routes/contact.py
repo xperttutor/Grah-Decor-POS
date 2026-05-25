@@ -95,7 +95,7 @@ def api_customer_orders(customer_id):
     db = get_db()
 
     # Resolve customer name for display only
-    customers = get_all_customers()
+    customers, _, _ = get_all_customers()
     cust = next((c for c in customers if c.get('customer_id') == customer_id), None)
     if not cust:
         return jsonify({'customer_id': customer_id, 'orders': [], 'error': 'Customer not found'}), 404
@@ -144,7 +144,7 @@ def api_customer_clv(customer_id):
     Delivered + Settled orders) as JSON.
     Queries by customer_id field — correct even for multiple Unknown records.
     """
-    customers = get_all_customers()
+    customers, _, _ = get_all_customers()
     cust = next((c for c in customers if c.get('customer_id') == customer_id), None)
     customer_name = cust.get('name', '') if cust else ''
     clv = get_customer_lifetime_value(customer_id)
