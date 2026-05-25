@@ -7,7 +7,7 @@ from app.services.inventory_service import adjust_ready_stock_qty, log_inventory
 
 def get_unsettled_orders(platform=None):
     db = get_db()
-    query = db.collection('orders').where(filter=FieldFilter("status", "==", "Delivered"))
+    query = db.collection('orders').where(filter=FieldFilter("status", "in", ["Delivered", "RTO", "Returned"]))
     if platform:
         query = query.where(filter=FieldFilter("platform", "==", platform))
         
@@ -72,21 +72,34 @@ def create_payment_settlement(platform, utr_number, amount_received, order_ids, 
     
     _, doc_ref = db.collection('settlement_batches').add(batch_doc)
     
-    # Update orders: mark as Settled (terminal)
+    # Update orders: Delivered → Settled; RTO/Returned → preserve status, mark payment_settled
     batch = db.batch()
     for o_id in order_ids:
         order_ref = db.collection('orders').document(o_id)
-        # Read existing history for this order
         snap = order_ref.get()
-        history = snap.to_dict().get('status_history', []) if snap.exists else []
-        history.append({'status': 'Settled', 'timestamp': now.isoformat()})
-        batch.update(order_ref, {
-            'payment_settled': True,
-            'settlement_batch_id': utr_number,
-            'status': 'Settled',
-            'status_history': history,
-            'updated_at': now,
-        })
+        if not snap.exists:
+            continue
+        current_status = snap.to_dict().get('status', 'Delivered')
+        history = snap.to_dict().get('status_history', [])
+        if current_status in ('RTO', 'Returned'):
+            # Return status is preserved; only mark payment as settled
+            history.append({'status': 'Payment Settled', 'timestamp': now.isoformat()})
+            batch.update(order_ref, {
+                'payment_settled': True,
+                'settlement_batch_id': utr_number,
+                'status_history': history,
+                'updated_at': now,
+            })
+        else:
+            # Delivered → Settled (terminal)
+            history.append({'status': 'Settled', 'timestamp': now.isoformat()})
+            batch.update(order_ref, {
+                'payment_settled': True,
+                'settlement_batch_id': utr_number,
+                'status': 'Settled',
+                'status_history': history,
+                'updated_at': now,
+            })
     batch.commit()
     
     # Cashbook entry — log the actual received amount as-is (source of truth)
@@ -179,28 +192,25 @@ def process_order_return(order_id, return_type, penalty_amount, item_condition):
     # Determine new status
     new_status = 'RTO' if return_type == 'rto' else 'Returned'
     
-    update = {
-        'status':         new_status,
-        'return_type':    return_type,
-        'item_condition': item_condition,
-        'bank_settlement': 0.0,
-        'updated_at':     now,
-    }
-    
     o_id = order_data.get('order_id', '')
     order_label = f"Order {o_id}" if o_id else "Order"
 
+    # Determine bank_settlement: RTO → 0, Customer Return → negative penalty amount
+    p_amt = 0.0
     if return_type == 'customer_return' and penalty_amount:
         p_amt = float(penalty_amount)
-        if p_amt > 0:
-            update['penalty_amount'] = p_amt
-            add_cashbook_entry(
-                entry_type='outflow',
-                category='Penalty',
-                description=f"Customer Return Penalty — {order_label}",
-                amount=p_amt,
-                reference_id=order_id
-            )
+    bank_settlement_val = -p_amt if p_amt > 0 else 0.0
+
+    update = {
+        'status':          new_status,
+        'return_type':     return_type,
+        'item_condition':  item_condition,
+        'bank_settlement': bank_settlement_val,
+        'updated_at':      now,
+    }
+
+    if p_amt > 0:
+        update['penalty_amount'] = p_amt
 
     # Append to status_history
     existing_history = order_data.get('status_history', [])
@@ -266,22 +276,34 @@ def delete_settlement_batch(batch_id):
     data = doc.to_dict()
     order_ids = data.get('order_ids', [])
     
-    # 1. Revert orders status
+    # 1. Revert orders: Settled → Delivered; RTO/Returned → just clear payment_settled
     batch = db.batch()
     now = datetime.now(timezone.utc)
     for o_id in order_ids:
         order_ref = db.collection('orders').document(o_id)
         snap = order_ref.get()
         if snap.exists:
+            current_status = snap.to_dict().get('status', 'Settled')
             history = snap.to_dict().get('status_history', [])
-            history.append({'status': 'Delivered', 'timestamp': now.isoformat()})
-            batch.update(order_ref, {
-                'payment_settled': False,
-                'settlement_batch_id': '',
-                'status': 'Delivered',
-                'status_history': history,
-                'updated_at': now
-            })
+            if current_status in ('RTO', 'Returned'):
+                # Status was preserved during settlement; just clear the payment flag
+                history.append({'status': 'Settlement Reversed', 'timestamp': now.isoformat()})
+                batch.update(order_ref, {
+                    'payment_settled': False,
+                    'settlement_batch_id': '',
+                    'status_history': history,
+                    'updated_at': now
+                })
+            else:
+                # Was Settled (came from Delivered) → revert to Delivered
+                history.append({'status': 'Delivered', 'timestamp': now.isoformat()})
+                batch.update(order_ref, {
+                    'payment_settled': False,
+                    'settlement_batch_id': '',
+                    'status': 'Delivered',
+                    'status_history': history,
+                    'updated_at': now
+                })
     batch.commit()
     
     # 2. Delete linked cashbook entry

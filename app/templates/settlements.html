@@ -61,6 +61,7 @@ TAB 1: UNSETTLED ORDERS
                         </thead>
                         <tbody>
                             {% for order in orders %}
+                            {% set is_returned = order.status in ['RTO', 'Returned'] %}
                             <tr class="unsettled-row" data-item-index="{{ loop.index }}">
                                 <td style="text-align: center;">
                                     <input type="checkbox" name="order_ids" value="{{ order.id }}"
@@ -70,17 +71,28 @@ TAB 1: UNSETTLED ORDERS
                                 </td>
                                 <td>{{ order.date.strftime('%d/%m/%Y') if order.date and order.date.strftime else '-' }}
                                 </td>
-                                <td class="text-mono">{{ order.order_id or '-' }}</td>
+                                <td class="text-mono">
+                                    {{ order.order_id or '-' }}
+                                    {% if order.status == 'RTO' %}
+                                    <span class="badge badge-rto" style="font-size:0.68em; margin-left:4px;">RTO</span>
+                                    {% elif order.status == 'Returned' %}
+                                    <span class="badge badge-returned" style="font-size:0.68em; margin-left:4px;">Returned</span>
+                                    {% endif %}
+                                </td>
                                 <td><span class="badge badge-platform">{{ order.platform }}</span></td>
                                 <td>{{ order.order_items|length if order.order_items else 0 }} Items</td>
-                                <td class="text-right text-bold text-green">₹ {{
+                                <td class="text-right text-bold {% if is_returned %}text-danger{% else %}text-green{% endif %}">₹ {{
                                     "%.2f"|format(order.bank_settlement|default(0)) }}</td>
                                 <td style="text-align:center;">
+                                    {% if not is_returned %}
                                     <button type="button" class="btn btn-xs"
                                         style="background:var(--danger); color:#fff; border:none; font-size:0.7em;"
                                         onclick="openReturnModal('{{ order.id }}', '{{ order.order_id or order.id }}')">
                                         ↩ Return
                                     </button>
+                                    {% else %}
+                                    <span class="text-muted" style="font-size:0.78em;">—</span>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -500,8 +512,8 @@ PROCESS RETURN MODAL
 
         const expected = _selectedExpected;
 
-        if (actual > expected) {
-            // Actual > Expected → error
+        if (expected > 0 && actual > expected) {
+            // Actual > Expected → error (only meaningful when expected is positive)
             submitBtn.disabled = true;
             deductionsPanel.classList.add('hidden');
             deductionsInput.value = '0';
