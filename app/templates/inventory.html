@@ -235,7 +235,7 @@
                         <span class="text-bold">{{ s.quantity|int }}</span>
                         {% endif %}
                     </td>
-                    <td class="text-warning text-bold">{{ s.reserved_quantity or 0 }}</td>
+                    <td class="text-warning text-bold">{{ (s.reserved_quantity or 0) | int }}</td>
                     <td class="{% if avail <= 0 %}text-danger{% else %}text-success{% endif %} text-bold">
                         {{ avail|int }}
                         {% if ns.pbadge == 'out' %}<span class="stock-badge stock-badge-out">OUT</span>{% endif %}
@@ -296,7 +296,7 @@
                             <span class="text-bold">{{ v.color }}</span>
                     </td>
                     <td><span class="text-bold">{{ v.quantity|int }}</span></td>
-                    <td class="text-warning text-bold">{{ v.reserved_quantity or 0 }}</td>
+                    <td class="text-warning text-bold">{{ (v.reserved_quantity or 0) | int }}</td>
                     <td class="{% if vavail <= 0 %}text-danger{% else %}text-success{% endif %} text-bold">
                         {{ vavail|int }}
                         {% if v_badge == 'out' %}<span class="stock-badge stock-badge-out">OUT</span>{% endif %}
