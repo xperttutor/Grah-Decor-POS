@@ -110,7 +110,7 @@
 
         <!-- Row 4: Financial Breakdown -->
         <div class="order-form-section-label">Financials</div>
-        <div class="order-form-row" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="order-form-row" style="grid-template-columns: repeat(4, 1fr);">
             <div class="form-group" style="margin:0;">
                 <label for="add-shipping">Shipping ₹ *</label>
                 <input type="number" id="add-shipping" name="shipping" step="0.01" min="0" value="0"
@@ -125,6 +125,11 @@
                 <label for="add-marketplace-fee">Mkt Fee ₹ *</label>
                 <input type="number" id="add-marketplace-fee" name="marketplace_fee" step="0.01" min="0" value="0"
                     oninput="calcSettlement('add')" required>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label for="add-other-charges">Other Charges ₹</label>
+                <input type="number" id="add-other-charges" name="other_charges" step="0.01" min="0" value="0"
+                    oninput="calcSettlement('add')">
             </div>
         </div>
 
@@ -496,7 +501,7 @@
 
             <!-- Row 4: Financial Breakdown -->
             <div class="order-form-section-label">Financials</div>
-            <div class="order-form-row" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="order-form-row" style="grid-template-columns: repeat(4, 1fr);">
                 <div class="form-group" style="margin:0;">
                     <label>Shipping ₹</label>
                     <input type="number" name="shipping" id="edit-shipping" step="0.01" min="0"
@@ -509,6 +514,11 @@
                 <div class="form-group" style="margin:0;">
                     <label>Mkt Fee ₹</label>
                     <input type="number" name="marketplace_fee" id="edit-marketplace_fee" step="0.01" min="0"
+                        oninput="calcSettlement('edit')">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label>Other Charges ₹</label>
+                    <input type="number" name="other_charges" id="edit-other_charges" step="0.01" min="0"
                         oninput="calcSettlement('edit')">
                 </div>
             </div>
@@ -745,7 +755,8 @@
         const shipping = parseFloat(data.shipping || 0);
         const tax = parseFloat(data.tax || 0);
         const mktFee = parseFloat(data.marketplace_fee || data.mkt_fee || 0);
-        const netSettlement = parseFloat(data.bank_settlement || data.settlement_amount || (sellingPrice - shipping - tax - mktFee));
+        const otherCharges = parseFloat(data.other_charges || 0);
+        const netSettlement = parseFloat(data.bank_settlement || data.settlement_amount || (sellingPrice - shipping - tax - mktFee - otherCharges));
         const isTerminalPaid = ['Settled'].includes(data.status);
 
         const finContainer = document.getElementById('view-fin-rows');
@@ -754,6 +765,7 @@
             shipping ? finRow('− Shipping', fmt(shipping), 'color:#ef4444;') : '',
             tax ? finRow('− Tax / GST', fmt(tax), 'color:#ef4444;') : '',
             mktFee ? finRow('− Marketplace Fee', fmt(mktFee), 'color:#ef4444;') : '',
+            otherCharges ? finRow('− Other Charges', fmt(otherCharges), 'color:#ef4444;') : '',
             `<span style="color:var(--text-secondary); border-top:1px solid var(--border); padding-top:0.4rem; margin-top:0.2rem;">Net Settlement</span>
              <span style="font-weight:800; font-size:1.05em; border-top:1px solid var(--border); padding-top:0.4rem; margin-top:0.2rem; color:${netSettlement >= 0 ? '#059669' : '#ef4444'};">${fmt(netSettlement)}</span>`,
             isTerminalPaid ? finRow('Status', '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:999px;font-size:0.82em;font-weight:600;">Settled ✓</span>') : '',
@@ -870,6 +882,7 @@
         document.getElementById('edit-shipping').value = data.shipping || 0;
         document.getElementById('edit-tax').value = data.tax || 0;
         document.getElementById('edit-marketplace_fee').value = data.marketplace_fee || 0;
+        document.getElementById('edit-other_charges').value = data.other_charges || 0;
 
         // Handle Unknown customer — show reassignment banner
         const isUnknown = (data.customer || '').toLowerCase() === 'unknown';
@@ -944,8 +957,9 @@
         const sh = parseFloat(document.getElementById(prefix + '-shipping')?.value || 0);
         const tx = parseFloat(document.getElementById(prefix + '-tax')?.value || 0);
         const mf = parseFloat(document.getElementById(prefix + '-marketplace_fee')?.value || document.getElementById(prefix + '-marketplace-fee')?.value || 0);
+        const oc = parseFloat(document.getElementById(prefix + '-other_charges')?.value || document.getElementById(prefix + '-other-charges')?.value || 0);
 
-        const settlement = sp - sh - tx - mf;
+        const settlement = sp - sh - tx - mf - oc;
         const el = document.getElementById(prefix + '-settlement-display');
         if (el) el.textContent = '\u20b9 ' + settlement.toFixed(2);
         

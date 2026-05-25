@@ -11,18 +11,20 @@
 
 <!-- Tabs -->
 <div class="tabs">
-    <button class="tab {% if active_tab not in ['logs','returns'] %}active{% endif %}" id="btn-tab-unsettled"
+    <button class="tab {% if active_tab not in ['logs','returns','charges'] %}active{% endif %}" id="btn-tab-unsettled"
         onclick="switchSettlementTab('unsettled')">Payment Pending ({{ orders|length }})</button>
     <button class="tab {% if active_tab == 'logs' %}active{% endif %}" id="btn-tab-logs"
         onclick="switchSettlementTab('logs')">Settlement Logs ({{ batches|length }})</button>
     <button class="tab {% if active_tab == 'returns' %}active{% endif %}" id="btn-tab-returns"
         onclick="switchSettlementTab('returns')">Returns &amp; RTOs ({{ returned_orders|length }})</button>
+    <button class="tab {% if active_tab == 'charges' %}active{% endif %}" id="btn-tab-charges"
+        onclick="switchSettlementTab('charges')">Other Charges ({{ settled_orders|length }})</button>
 </div>
 
 {# ═══════════════════════════════════════════════════════════
 TAB 1: UNSETTLED ORDERS
 ═══════════════════════════════════════════════════════════ #}
-<div id="tab-unsettled" class="tab-content {% if active_tab not in ['logs','returns'] %}{% else %}hidden{% endif %}">
+<div id="tab-unsettled" class="tab-content {% if active_tab not in ['logs','returns','charges'] %}{% else %}hidden{% endif %}">
 
     <div class="filter-bar">
         <form autocomplete="off" method="get" action="{{ url_for('settlements.settlements_list') }}" class="filter-form">
@@ -366,6 +368,82 @@ TAB 2: SETTLEMENT LOGS (ACCORDION)
 
 
 {# ═══════════════════════════════════════════════════════════
+   TAB 4: OTHER CHARGES
+═══════════════════════════════════════════════════════════ #}
+<div id="tab-charges" class="tab-content {% if active_tab != 'charges' %}hidden{% endif %}">
+    
+    <div class="filter-bar" style="margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+        <div class="month-nav">
+            <a href="{{ url_for('settlements.settlements_list', month=prev_month_key, platform=filter_platform, tab='charges') }}" class="btn btn-sm" title="Previous Month" style="padding: 0.2rem 0.5rem; font-size: 0.9em; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); text-decoration: none; color: var(--text);">&laquo;</a>
+            <span style="font-weight: 600; font-size: 0.95em; padding: 0 0.5rem;">{{ month_key }}</span>
+            <a href="{{ url_for('settlements.settlements_list', month=next_month_key, platform=filter_platform, tab='charges') }}" class="btn btn-sm" title="Next Month" style="padding: 0.2rem 0.5rem; font-size: 0.9em; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); text-decoration: none; color: var(--text);">&raquo;</a>
+        </div>
+        
+        <form autocomplete="off" method="get" action="{{ url_for('settlements.settlements_list') }}" class="filter-form" style="margin:0;">
+            <input type="hidden" name="tab" value="charges">
+            <input type="hidden" name="month" value="{{ month_key }}">
+            <select name="platform" onchange="this.form.submit()">
+                <option value="">All Platforms</option>
+                {% for p in platforms %}
+                <option value="{{ p }}" {% if filter_platform==p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Order ID</th>
+                    <th>Platform</th>
+                    <th class="text-right">Selling ₹</th>
+                    <th class="text-right">Shipping</th>
+                    <th class="text-right">Tax</th>
+                    <th class="text-right">MKT Fee</th>
+                    <th class="text-right">Other Charges</th>
+                    <th class="text-right">Total Deductions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in settled_orders %}
+                <tr>
+                    <td>{{ o.date.strftime('%d/%m/%Y') if o.date and o.date.strftime else (o.date[:10] if o.date else '-') }}</td>
+                    <td class="text-mono">{{ o.order_id or '-' }}</td>
+                    <td><span class="badge badge-platform">{{ o.platform }}</span></td>
+                    <td class="text-right">₹ {{ "%.2f"|format(o.selling_price) }}</td>
+                    <td class="text-right">₹ {{ "%.2f"|format(o.shipping) }}</td>
+                    <td class="text-right">₹ {{ "%.2f"|format(o.tax) }}</td>
+                    <td class="text-right">₹ {{ "%.2f"|format(o.marketplace_fee) }}</td>
+                    <td class="text-right">₹ {{ "%.2f"|format(o.other_charges) }}</td>
+                    <td class="text-right text-bold text-danger">₹ {{ "%.2f"|format(o.total_deductions) }}</td>
+                </tr>
+                {% endfor %}
+                {% if not settled_orders %}
+                <tr>
+                    <td colspan="9" class="empty-state">No settled orders found for {{ month_key }}.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+            {% if settled_orders %}
+            <tfoot style="background: var(--bg-card); position: sticky; bottom: 0; z-index: 10;">
+                <tr>
+                    <td colspan="3" class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">TOTALS</td>
+                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.selling_price) }}</td>
+                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.shipping) }}</td>
+                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.tax) }}</td>
+                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.marketplace_fee) }}</td>
+                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.other_charges) }}</td>
+                    <td class="text-right text-danger" style="font-weight: 800; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.total_deductions) }}</td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════
 PROCESS RETURN MODAL
 ═══════════════════════════════════════════════════════════ #}
 <div class="modal-overlay hidden" id="returnModal">
@@ -420,7 +498,7 @@ PROCESS RETURN MODAL
 
     // ── Tab Switching ──
     function switchSettlementTab(tab) {
-        ['unsettled', 'logs', 'returns'].forEach(t => {
+        ['unsettled', 'logs', 'returns', 'charges'].forEach(t => {
             document.getElementById('tab-' + t)?.classList.toggle('hidden', t !== tab);
             document.getElementById('btn-tab-' + t)?.classList.toggle('active', t === tab);
         });

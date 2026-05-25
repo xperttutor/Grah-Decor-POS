@@ -5,9 +5,11 @@ from app.services.settlement_service import (
     get_settlement_batches,
     process_order_return,
     get_returned_orders,
-    delete_settlement_batch
+    delete_settlement_batch,
+    get_settled_orders_charges
 )
 from app.services.order_service import PLATFORMS
+from app.routes.dashboard import _parse_month_param, _adjacent_month_keys
 
 settlements_bp = Blueprint('settlements', __name__, url_prefix='/settlements')
 
@@ -33,6 +35,13 @@ def settlements_list():
     total_damaged = sum(1 for o in returned if o.get('item_condition') == 'damaged')
     total_penalties = sum(float(o.get('penalty_amount', 0)) for o in returned)
     
+    # Other Charges / Settled Orders metrics
+    month_param = request.args.get('month', '').strip()
+    year, month = _parse_month_param(month_param)
+    prev_month_key, next_month_key = _adjacent_month_keys(year, month)
+    
+    settled_orders, settled_summary = get_settled_orders_charges(year, month, platform=platform_filter if platform_filter else None)
+    
     return render_template('settlements.html',
                            orders=unsettled_orders,
                            platforms=PLATFORMS,
@@ -44,7 +53,12 @@ def settlements_list():
                            total_damaged=total_damaged,
                            total_penalties=total_penalties,
                            has_prev_batch=has_prev,
-                           has_next_batch=has_next)
+                           has_next_batch=has_next,
+                           settled_orders=settled_orders,
+                           settled_summary=settled_summary,
+                           month_key=f"{year:04d}-{month:02d}",
+                           prev_month_key=prev_month_key,
+                           next_month_key=next_month_key)
 
 @settlements_bp.route('/add', methods=['POST'])
 def add_settlement():

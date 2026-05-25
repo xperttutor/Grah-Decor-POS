@@ -1,3 +1,4 @@
+import calendar
 from datetime import datetime, timezone
 from google.cloud.firestore_v1 import FieldFilter
 from app import get_db
@@ -314,4 +315,62 @@ def delete_settlement_batch(batch_id):
         
     # 3. Delete the batch document
     batch_ref.delete()
-    return True
+
+def get_settled_orders_charges(year, month, platform=None):
+    db = get_db()
+    
+    _, last_day = calendar.monthrange(year, month)
+    start_date = datetime(year, month, 1, tzinfo=timezone.utc)
+    end_date = datetime(year, month, last_day, 23, 59, 59, 999999, tzinfo=timezone.utc)
+    
+    query = db.collection('orders').where(filter=FieldFilter('payment_settled', '==', True))
+    query = query.where(filter=FieldFilter('date', '>=', start_date))
+    query = query.where(filter=FieldFilter('date', '<=', end_date))
+    
+    if platform:
+        query = query.where(filter=FieldFilter('platform', '==', platform))
+        
+    query = query.order_by('date', direction='DESCENDING')
+    
+    docs = query.stream()
+    
+    orders = []
+    summary = {
+        'selling_price': 0.0,
+        'shipping': 0.0,
+        'tax': 0.0,
+        'marketplace_fee': 0.0,
+        'other_charges': 0.0,
+        'total_deductions': 0.0
+    }
+    
+    for d in docs:
+        data = d.to_dict()
+        sp = float(data.get('selling_price', 0))
+        sh = float(data.get('shipping', 0))
+        tx = float(data.get('tax', 0))
+        mf = float(data.get('marketplace_fee', 0))
+        oc = float(data.get('other_charges', 0))
+        deductions = sh + tx + mf + oc
+        
+        orders.append({
+            'id': d.id,
+            'date': data.get('date'),
+            'order_id': data.get('order_id', ''),
+            'platform': data.get('platform', ''),
+            'selling_price': sp,
+            'shipping': sh,
+            'tax': tx,
+            'marketplace_fee': mf,
+            'other_charges': oc,
+            'total_deductions': deductions
+        })
+        
+        summary['selling_price'] += sp
+        summary['shipping'] += sh
+        summary['tax'] += tx
+        summary['marketplace_fee'] += mf
+        summary['other_charges'] += oc
+        summary['total_deductions'] += deductions
+        
+    return orders, summary

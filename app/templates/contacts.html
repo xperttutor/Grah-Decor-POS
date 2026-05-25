@@ -567,7 +567,8 @@
                 const shipping = parseFloat(data.shipping || 0);
                 const tax = parseFloat(data.tax || 0);
                 const mktFee = parseFloat(data.marketplace_fee || 0);
-                const netSettlement = parseFloat(data.bank_settlement || (sellingPrice - shipping - tax - mktFee));
+                const otherCharges = parseFloat(data.other_charges || 0);
+                const netSettlement = parseFloat(data.bank_settlement || (sellingPrice - shipping - tax - mktFee - otherCharges));
                 const isTerminalPaid = data.status === 'Settled';
 
                 document.getElementById('view-fin-rows').innerHTML = [
@@ -575,6 +576,7 @@
                     shipping ? finRow('\u2212 Shipping', fmt(shipping), 'color:#ef4444;') : '',
                     tax ? finRow('\u2212 Tax / GST', fmt(tax), 'color:#ef4444;') : '',
                     mktFee ? finRow('\u2212 Marketplace Fee', fmt(mktFee), 'color:#ef4444;') : '',
+                    otherCharges ? finRow('\u2212 Other Charges', fmt(otherCharges), 'color:#ef4444;') : '',
                     `<span style="color:var(--text-secondary); border-top:1px solid var(--border); padding-top:0.4rem; margin-top:0.2rem;">Net Settlement</span>
                      <span style="font-weight:800; font-size:1.05em; border-top:1px solid var(--border); padding-top:0.4rem; margin-top:0.2rem; color:${netSettlement >= 0 ? '#059669' : '#ef4444'};">\u20B9\u00a0${netSettlement.toFixed(2)}</span>`,
                     isTerminalPaid ? finRow('Status', '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:999px;font-size:0.82em;font-weight:600;">Settled \u2713</span>') : '',

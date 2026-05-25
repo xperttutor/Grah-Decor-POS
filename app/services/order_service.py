@@ -105,12 +105,13 @@ def add_order(data):
     refund = max(0, float(data.get('refund', 0)))
     tax = max(0, float(data.get('tax', 0)))
     marketplace_fee = max(0, float(data.get('marketplace_fee', 0)))
+    other_charges = max(0, float(data.get('other_charges', 0)))
     
     status = data.get('status', 'Pending')
     if status in CANCELLED_STATUSES:
         bank_settlement = 0.0
     else:
-        bank_settlement = selling_price - shipping - refund - tax - marketplace_fee
+        bank_settlement = selling_price - shipping - refund - tax - marketplace_fee - other_charges
 
     order_date = data.get('date')
     if order_date:
@@ -134,6 +135,7 @@ def add_order(data):
         'refund': refund,
         'tax': tax,
         'marketplace_fee': marketplace_fee,
+        'other_charges': other_charges,
         'bank_settlement': bank_settlement,
         'status': status,
         'reviews': data.get('reviews', ''),
@@ -206,11 +208,11 @@ def update_order(doc_id, data):
         update_data['order_items'] = data['order_items']
         update_data['selling_price'] = sum(float(item.get('price', 0)) * float(item.get('quantity', 1)) for item in data['order_items'])
 
-    for field in ['shipping', 'refund', 'tax', 'marketplace_fee']:
+    for field in ['shipping', 'refund', 'tax', 'marketplace_fee', 'other_charges']:
         if field in data:
             update_data[field] = max(0, float(data[field])) if data[field] else 0
 
-    if any(f in data for f in ['order_items', 'shipping', 'refund', 'tax', 'marketplace_fee', 'status']):
+    if any(f in data for f in ['order_items', 'shipping', 'refund', 'tax', 'marketplace_fee', 'other_charges', 'status']):
         new_status = update_data.get('status', old_data.get('status', 'Pending'))
         if new_status in CANCELLED_STATUSES:
             update_data['bank_settlement'] = 0.0
@@ -220,7 +222,8 @@ def update_order(doc_id, data):
             rf = update_data.get('refund', old_data.get('refund', 0))
             tx = update_data.get('tax', old_data.get('tax', 0))
             mf = update_data.get('marketplace_fee', old_data.get('marketplace_fee', 0))
-            update_data['bank_settlement'] = sp - sh - rf - tx - mf
+            oc = update_data.get('other_charges', old_data.get('other_charges', 0))
+            update_data['bank_settlement'] = sp - sh - rf - tx - mf - oc
 
     if 'date' in data and data['date']:
         try:

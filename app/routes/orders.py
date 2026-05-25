@@ -146,6 +146,7 @@ def order_add():
         'refund': request.form.get('refund', 0),
         'tax': request.form.get('tax', 0),
         'marketplace_fee': request.form.get('marketplace_fee', 0),
+        'other_charges': request.form.get('other_charges', 0),
         'status': request.form.get('status', 'Pending'),
         'reviews': request.form.get('reviews', '').strip(),
     }
@@ -214,6 +215,7 @@ def order_edit(doc_id):
         'refund': request.form.get('refund', 0),
         'tax': request.form.get('tax', 0),
         'marketplace_fee': request.form.get('marketplace_fee', 0),
+        'other_charges': request.form.get('other_charges', 0),
         'reviews': request.form.get('reviews', '').strip(),
     }
     
@@ -290,6 +292,7 @@ def api_order_detail(order_id):
 
     # Ensure shipping_id is always present (older docs may not have it)
     data.setdefault('shipping_id', '')
+    data.setdefault('other_charges', 0)
 
     # Serialize all top-level datetime / Firestore timestamp fields
     for key, val in list(data.items()):
