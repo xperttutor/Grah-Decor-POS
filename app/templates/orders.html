@@ -186,15 +186,11 @@
 </div>
 
 <!-- Orders Table -->
-<form autocomplete="off" id="bulkForm" method="POST" action="{{ url_for('orders.orders_bulk_action') }}">
-    <input type="hidden" name="action" id="bulkActionInput" value="">
+<div>
     <div class="table-wrapper">
         <table class="data-table" id="ordersTable">
             <thead>
                 <tr>
-                    <th style="width: 40px; text-align: center;">
-                        <input type="checkbox" id="selectAllCheckbox" onclick="toggleAll(this)">
-                    </th>
                     <th>Date</th>
                     <th>Order ID</th>
                     <th>Customer</th>
@@ -214,10 +210,6 @@
                 {% for order in orders %}
                 {% set is_terminal = order.status in ['Cancelled', 'Settled', 'Returned', 'RTO', 'Delivered'] %}
                 <tr>
-                    <td style="text-align: center;">
-                        <input type="checkbox" class="row-checkbox" name="order_ids" value="{{ order.id }}"
-                            onclick="updateBulkBar()" {% if is_terminal %}disabled{% endif %}>
-                    </td>
                     <td>{{ order.date.strftime('%d/%m/%Y') if order.date and order.date.strftime else '-' }}</td>
                     <td class="text-mono">{{ order.order_id or '-' }}</td>
                     <td>{{ order.customer }}</td>
@@ -277,7 +269,7 @@
                 {% endfor %}
                 {% if not orders %}
                 <tr>
-                    <td colspan="15" class="empty-state">No orders found. Click "+ New Order" to add one.</td>
+                    <td colspan="14" class="empty-state">No orders found. Click "+ New Order" to add one.</td>
                 </tr>
                 {% endif %}
             </tbody>
@@ -306,24 +298,6 @@
             {% endif %}
         </div>
     </div>
-</form>
-
-<!-- Floating Bulk Actions Bar -->
-<div id="bulkActionBar" class="bulk-action-bar hidden">
-    <div class="bulk-content" id="bulkContent">
-        <span id="bulkCount">0 orders selected</span>
-        <select id="bulkActionSelect" class="bulk-select">
-            <option value="" disabled selected>Choose action...</option>
-            <option value="status_Pending">Mark Pending</option>
-            <option value="status_Shipped">Mark Shipped</option>
-            <option value="status_Delivered">Mark Delivered</option>
-            <option value="status_Cancelled">Mark Cancelled</option>
-        </select>
-        <button type="button" class="btn btn-primary btn-sm" onclick="submitBulk()">Apply</button>
-    </div>
-    <button type="button" class="btn-minimize" onclick="toggleBulkMinimize()" id="bulkMinBtn">
-        <span id="minIcon">▾</span>
-    </button>
 </div>
 
 <!-- View Modal -->
@@ -335,7 +309,7 @@
             <button class="modal-close" onclick="closeModal('viewModal')">×</button>
         </div>
 
-        <div style="margin-bottom: 1.5rem;" class="form-grid form-grid-4 text-muted">
+        <div style="margin-bottom: 1.5rem;" class="form-grid form-grid-4 text-muted" id="view-header-grid">
             <div>
                 <small style="font-size:0.75em; letter-spacing:0.05em; text-transform:uppercase;">Order ID</small><br>
                 <strong id="view-order-id-field" style="color:var(--text); font-size:1.1em;"></strong>
@@ -352,6 +326,7 @@
                 <small style="font-size:0.75em; letter-spacing:0.05em; text-transform:uppercase;">Platform</small><br>
                 <strong id="view-platform" style="color:var(--text); font-size:1.1em;"></strong>
             </div>
+
         </div>
 
         <div class="table-wrapper"
@@ -410,6 +385,9 @@
                 Order Journey</div>
             <div id="view-timeline"
                 style="display:flex; align-items:flex-start; gap:0; overflow-x:auto; padding-bottom:0.5rem;"></div>
+            <div id="view-shipping-id-info" style="display:none; margin-top:0.75rem; font-size:0.85rem; color:var(--text-secondary);">
+                Shipping ID: <strong id="view-shipping-id-timeline" style="color:var(--text); font-family:monospace;"></strong>
+            </div>
         </div>
     </div>
 </div>
@@ -549,49 +527,32 @@
         </form>
     </div>
 </div>
+
+<!-- Shipping ID Modal -->
+<div class="modal-overlay hidden" id="shippingIdModal">
+    <div class="modal" style="max-width: 420px;">
+        <div class="modal-header">
+            <h3>Enter Shipping ID</h3>
+        </div>
+        <div style="padding:0.5rem 0 1rem;">
+            <div class="form-group">
+                <label for="shippingIdInput">AWB / Tracking Number</label>
+                <input type="text" id="shippingIdInput" placeholder="AWB / Tracking number"
+                    style="width:100%;" autocomplete="off">
+            </div>
+            <div style="margin-top:1.25rem; display:flex; flex-direction:column; align-items:stretch; gap:0.5rem;">
+                <button type="button" class="btn btn-primary" style="justify-content:center;"
+                    onclick="confirmShipment(false)">Confirm Shipment</button>
+                <a href="#" style="text-align:center; font-size:0.85rem; color:var(--text-muted); padding:0.25rem;"
+                    onclick="confirmShipment(true); return false;">Skip</a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    function toggleAll(source) {
-        const checkboxes = document.querySelectorAll('.row-checkbox');
-        checkboxes.forEach(cb => cb.checked = source.checked);
-        updateBulkBar();
-    }
-
-    function updateBulkBar() {
-        const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
-        const bar = document.getElementById('bulkActionBar');
-        const span = document.getElementById('bulkCount');
-        if (checkedCount > 0) {
-            bar.classList.remove('hidden');
-            span.textContent = `${checkedCount} order${checkedCount > 1 ? 's' : ''} selected`;
-        } else {
-            bar.classList.add('hidden');
-            bar.classList.remove('minimized');
-            document.getElementById('minIcon').textContent = '▾';
-        }
-    }
-
-    function toggleBulkMinimize() {
-        const bar = document.getElementById('bulkActionBar');
-        const icon = document.getElementById('minIcon');
-        bar.classList.toggle('minimized');
-        icon.textContent = bar.classList.contains('minimized') ? '▴' : '▾';
-    }
-
-    function submitBulk() {
-        const select = document.getElementById('bulkActionSelect');
-        const action = select.value;
-        if (!action) {
-            alert("Please choose an action first.");
-            return;
-        }
-        if (!confirm(`Are you sure you want to apply this status to all selected orders?`)) return;
-
-        document.getElementById('bulkActionInput').value = action;
-        document.getElementById('bulkForm').submit();
-    }
 
     function handleDropdownOther(selectElem) {
         let container = selectElem.parentElement;
@@ -738,6 +699,16 @@
         document.getElementById('view-order-id-field').textContent = data.order_id || '-';
         document.getElementById('view-customer').textContent = data.customer || '-';
         document.getElementById('view-platform').textContent = data.platform || '-';
+
+        // ── Shipping ID (conditional) ──
+        const shippingId = data.shipping_id || '';
+        const shippingIdInfo = document.getElementById('view-shipping-id-info');
+        if (shippingId) {
+            document.getElementById('view-shipping-id-timeline').textContent = shippingId;
+            shippingIdInfo.style.display = '';
+        } else {
+            shippingIdInfo.style.display = 'none';
+        }
 
         // ── Items table ──
         const tbody = document.getElementById('view-order-items-body');
@@ -1083,7 +1054,15 @@
         return isValid;
     }
 
+    let _pendingShipment = null;
+
     function inlineUpdateStatus(orderId, newStatus, selectEl) {
+        if (newStatus === 'Shipped') {
+            _pendingShipment = { orderId, newStatus };
+            document.getElementById('shippingIdInput').value = '';
+            document.getElementById('shippingIdModal').classList.remove('hidden');
+            return;
+        }
         if (!confirm(`Are you sure you want to change the order status to ${newStatus}? This action cannot be undone.`)) {
             if (selectEl) {
                 const selectedOpt = selectEl.querySelector('option[selected]');
@@ -1098,6 +1077,19 @@
         submitInlineAction(orderId, 'status_' + newStatus);
     }
 
+    function closeShippingIdModal() {
+        document.getElementById('shippingIdModal').classList.add('hidden');
+        _pendingShipment = null;
+    }
+
+    function confirmShipment(skip) {
+        if (!_pendingShipment) return;
+        const shippingId = skip ? '' : document.getElementById('shippingIdInput').value.trim();
+        const { orderId, newStatus } = _pendingShipment;
+        closeShippingIdModal();
+        submitInlineAction(orderId, 'status_' + newStatus, { shipping_id: shippingId });
+    }
+
     function inlineUpdateReview(orderId, newReview, selectEl) {
         if (newReview === 'Done' && selectEl) {
             selectEl.disabled = true;
@@ -1105,22 +1097,32 @@
         submitInlineAction(orderId, 'review_' + newReview);
     }
 
-    function submitInlineAction(orderId, actionValue) {
+    function submitInlineAction(orderId, actionValue, extraFields) {
+        // Determine route and form fields from actionValue
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = "{{ url_for('orders.orders_bulk_action') }}";
 
-        const actionInput = document.createElement('input');
-        actionInput.type = 'hidden';
-        actionInput.name = 'action';
-        actionInput.value = actionValue;
-        form.appendChild(actionInput);
+        if (actionValue.startsWith('status_')) {
+            const newStatus = actionValue.replace('status_', '');
+            form.action = `/orders/set_status/${orderId}`;
+            const si = document.createElement('input');
+            si.type = 'hidden'; si.name = 'status'; si.value = newStatus;
+            form.appendChild(si);
+        } else if (actionValue.startsWith('review_')) {
+            const newReview = actionValue.replace('review_', '');
+            form.action = `/orders/set_review/${orderId}`;
+            const ri = document.createElement('input');
+            ri.type = 'hidden'; ri.name = 'review'; ri.value = newReview;
+            form.appendChild(ri);
+        }
 
-        const orderInput = document.createElement('input');
-        orderInput.type = 'hidden';
-        orderInput.name = 'order_ids';
-        orderInput.value = orderId;
-        form.appendChild(orderInput);
+        if (extraFields) {
+            for (const [name, value] of Object.entries(extraFields)) {
+                const input = document.createElement('input');
+                input.type = 'hidden'; input.name = name; input.value = value;
+                form.appendChild(input);
+            }
+        }
 
         document.body.appendChild(form);
         form.submit();

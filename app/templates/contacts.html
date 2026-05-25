@@ -325,6 +325,9 @@
                 Order Journey</div>
             <div id="view-timeline"
                 style="display:flex; align-items:flex-start; gap:0; overflow-x:auto; padding-bottom:0.5rem;"></div>
+            <div id="view-shipping-id-info" style="display:none; margin-top:0.75rem; font-size:0.85rem; color:var(--text-secondary);">
+                Shipping ID: <strong id="view-shipping-id-timeline" style="color:var(--text); font-family:monospace;"></strong>
+            </div>
         </div>
     </div>
 </div>
@@ -622,6 +625,15 @@
                         `;
                         timeline.appendChild(node);
                     });
+                }
+                // ── Shipping ID ──
+                const shippingId = data.shipping_id || '';
+                const shippingIdInfo = document.getElementById('view-shipping-id-info');
+                if (shippingId) {
+                    document.getElementById('view-shipping-id-timeline').textContent = shippingId;
+                    shippingIdInfo.style.display = '';
+                } else {
+                    shippingIdInfo.style.display = 'none';
                 }
             })
             .catch(() => {

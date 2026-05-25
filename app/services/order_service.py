@@ -197,7 +197,11 @@ def update_order(doc_id, data):
     for field in ['order_id', 'customer', 'number', 'platform', 'status', 'reviews']:
         if field in data:
             update_data[field] = data[field]
-            
+
+    # Save shipping_id only when it is explicitly provided (Shipped transitions)
+    if 'shipping_id' in data:
+        update_data['shipping_id'] = data.get('shipping_id') or ''
+
     if 'order_items' in data:
         update_data['order_items'] = data['order_items']
         update_data['selling_price'] = sum(float(item.get('price', 0)) * float(item.get('quantity', 1)) for item in data['order_items'])

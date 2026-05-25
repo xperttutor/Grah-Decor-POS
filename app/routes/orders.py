@@ -236,47 +236,30 @@ def orders_delete(doc_id):
         flash('Order not found.', 'error')
     return redirect(url_for('orders.orders_list'))
 
-@orders_bp.route('/bulk_action', methods=['POST'])
-def orders_bulk_action():
-    action = request.form.get('action')
-    order_ids = request.form.getlist('order_ids')
-    
-    if not order_ids or not action:
-        flash('No orders selected or action specified.', 'error')
+@orders_bp.route('/set_status/<doc_id>', methods=['POST'])
+def order_set_status(doc_id):
+    from app import get_db
+    db = get_db()
+    doc = db.collection('orders').document(doc_id).get()
+    if not doc.exists or doc.to_dict().get('status') in TERMINAL_STATUSES:
+        flash('Order not found or status is locked.', 'error')
         return redirect(url_for('orders.orders_list'))
-        
-    success_count = 0
-    if action == 'delete':
-        for doc_id in order_ids:
-            if delete_order(doc_id):
-                success_count += 1
-        flash(f'Successfully deleted {success_count} orders.', 'success')
-    elif action.startswith('status_'):
-        new_status = action.replace('status_', '')
+    new_status = request.form.get('status', '')
+    if not new_status:
+        return redirect(url_for('orders.orders_list'))
+    order_data = {'status': new_status}
+    if new_status == 'Shipped':
+        order_data['shipping_id'] = request.form.get('shipping_id', '')
+    update_order(doc_id, order_data)
+    return redirect(url_for('orders.orders_list'))
+
+
+@orders_bp.route('/set_review/<doc_id>', methods=['POST'])
+def order_set_review(doc_id):
+    new_review = request.form.get('review', '')
+    if new_review:
         from app import get_db
-        db = get_db()
-        for doc_id in order_ids:
-            doc = db.collection('orders').document(doc_id).get()
-            if doc.exists:
-                old = doc.to_dict()
-                if old.get('status') in TERMINAL_STATUSES:
-                    continue  # skip locked orders
-                update_order(doc_id, {'status': new_status})
-                success_count += 1
-        flash(f'Successfully changed status of {success_count} orders to {new_status}.', 'success')
-    elif action.startswith('review_'):
-        new_review = action.replace('review_', '')
-        from app import get_db
-        db = get_db()
-        for doc_id in order_ids:
-            doc = db.collection('orders').document(doc_id).get()
-            if doc.exists:
-                db.collection('orders').document(doc_id).update({'reviews': new_review})
-                success_count += 1
-        flash(f'Successfully changed review of {success_count} orders.', 'success')
-    else:
-        flash('Invalid action requested.', 'error')
-        
+        get_db().collection('orders').document(doc_id).update({'reviews': new_review})
     return redirect(url_for('orders.orders_list'))
 
 
@@ -304,6 +287,9 @@ def api_order_detail(order_id):
 
     doc = matches[0]
     data = {'doc_id': doc.id, **doc.to_dict()}
+
+    # Ensure shipping_id is always present (older docs may not have it)
+    data.setdefault('shipping_id', '')
 
     # Serialize all top-level datetime / Firestore timestamp fields
     for key, val in list(data.items()):
