@@ -703,8 +703,12 @@
         // ── Shipping ID (conditional) ──
         const shippingId = data.shipping_id || '';
         const shippingIdInfo = document.getElementById('view-shipping-id-info');
+        const isShippedOrBeyond = ['Shipped', 'Delivered', 'RTO', 'Returned', 'Settled'].includes(data.status);
         if (shippingId) {
-            document.getElementById('view-shipping-id-timeline').textContent = shippingId;
+            shippingIdInfo.innerHTML = `Shipping ID: <strong id="view-shipping-id-timeline" style="color:var(--text); font-family:monospace;">${shippingId}</strong>`;
+            shippingIdInfo.style.display = '';
+        } else if (isShippedOrBeyond) {
+            shippingIdInfo.innerHTML = 'Shipping ID: Not Available';
             shippingIdInfo.style.display = '';
         } else {
             shippingIdInfo.style.display = 'none';

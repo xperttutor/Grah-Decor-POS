@@ -221,7 +221,14 @@ TAB 2: SETTLEMENT LOGS (ACCORDION)
                     <tbody>
                         {% for line in batch.order_lines %}
                         <tr>
-                            <td class="text-mono">{{ line.order_id or '-' }}</td>
+                            <td class="text-mono">
+                                {{ line.order_id or '-' }}
+                                {% if line.return_type == 'rto' %}
+                                <span class="badge badge-rto" style="font-size:0.68em; margin-left:4px;">RTO</span>
+                                {% elif line.return_type == 'customer_return' %}
+                                <span class="badge badge-returned" style="font-size:0.68em; margin-left:4px;">Returned</span>
+                                {% endif %}
+                            </td>
                             <td>{{ line.customer or '-' }}</td>
                             <td><span class="badge badge-platform">{{ line.platform }}</span></td>
                             <td class="text-right">{{ "%.2f"|format(line.selling_price or 0) }}</td>

@@ -52,6 +52,7 @@ def create_payment_settlement(platform, utr_number, amount_received, order_ids, 
                 'platform':        data.get('platform', ''),
                 'selling_price':   data.get('selling_price', 0),
                 'bank_settlement': data.get('bank_settlement', 0),
+                'return_type':     data.get('return_type', ''),
             })
 
     received_amount = float(amount_received)
