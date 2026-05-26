@@ -174,10 +174,12 @@
     </div>
     <script>
     function toggleVariantMode(checked) {
-        var colorGroup = document.getElementById('ready-color-group');
-        var qtyGroup   = document.getElementById('ready-qty-group');
-        var colorInput = document.getElementById('ready-color');
-        var qtyInput   = document.getElementById('ready-qty');
+        var colorGroup    = document.getElementById('ready-color-group');
+        var qtyGroup      = document.getElementById('ready-qty-group');
+        var minStockGroup = document.getElementById('ready-min-stock-group');
+        var colorInput    = document.getElementById('ready-color');
+        var qtyInput      = document.getElementById('ready-qty');
+        var minInput      = document.getElementById('ready-min-stock');
         if (checked) {
             colorInput.value    = '';
             colorInput.disabled = true;
@@ -185,11 +187,16 @@
             qtyInput.value    = '0';
             qtyInput.disabled = true;
             qtyGroup.style.opacity = '0.4';
+            minInput.value    = '0';
+            minInput.disabled = true;
+            minStockGroup.style.opacity = '0.4';
         } else {
             colorInput.disabled = false;
             colorGroup.style.opacity = '1';
             qtyInput.disabled = false;
             qtyGroup.style.opacity = '1';
+            minInput.disabled = false;
+            minStockGroup.style.opacity = '1';
         }
     }
     </script>
@@ -510,9 +517,14 @@
                 <label>Variant Name (e.g. Black, white)</label>
                 <input type="text" name="variant_name" required placeholder="e.g. Black">
             </div>
-            <div class="form-group" style="margin-bottom:1.5rem;">
+            <div class="form-group" style="margin-bottom:1rem;">
                 <label>Initial Quantity</label>
                 <input type="number" name="quantity" step="1" min="0" value="0">
+            </div>
+            <div class="form-group" style="margin-bottom:1.5rem;">
+                <label>Min Stock Alert</label>
+                <input type="number" name="min_stock" step="1" min="0" value="0"
+                    title="Show LOW badge when available stock falls to or below this number">
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">Add

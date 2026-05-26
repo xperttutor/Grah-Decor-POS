@@ -189,12 +189,13 @@ def ready_add_variant(parent_id):
     
     variant_name = request.form.get('variant_name', '').strip()
     quantity = request.form.get('quantity', 0)
-    
+    min_stock = request.form.get('min_stock', 0)
+
     if not variant_name:
         flash('Variant name is required.', 'error')
         return redirect(url_for('inventory.inventory_list', tab='ready'))
-    
-    add_ready_stock_variant(parent_id, parent['name'], variant_name, quantity)
+
+    add_ready_stock_variant(parent_id, parent['name'], variant_name, quantity, min_stock=min_stock)
     flash(f'Variant "{variant_name}" added to {parent["name"]}.', 'success')
     return redirect(url_for('inventory.inventory_list', tab='ready'))
 

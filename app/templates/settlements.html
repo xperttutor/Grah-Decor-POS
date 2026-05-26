@@ -371,18 +371,45 @@ TAB 2: SETTLEMENT LOGS (ACCORDION)
    TAB 4: OTHER CHARGES
 ═══════════════════════════════════════════════════════════ #}
 <div id="tab-charges" class="tab-content {% if active_tab != 'charges' %}hidden{% endif %}">
-    
-    <div class="filter-bar" style="margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
-        <div class="month-nav">
-            <a href="{{ url_for('settlements.settlements_list', month=prev_month_key, platform=filter_platform, tab='charges') }}" class="btn btn-sm" title="Previous Month" style="padding: 0.2rem 0.5rem; font-size: 0.9em; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); text-decoration: none; color: var(--text);">&laquo;</a>
-            <span style="font-weight: 600; font-size: 0.95em; padding: 0 0.5rem;">{{ month_key }}</span>
-            <a href="{{ url_for('settlements.settlements_list', month=next_month_key, platform=filter_platform, tab='charges') }}" class="btn btn-sm" title="Next Month" style="padding: 0.2rem 0.5rem; font-size: 0.9em; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); text-decoration: none; color: var(--text);">&raquo;</a>
+
+    {% if settled_orders %}
+    <!-- Summary Metric Cards -->
+    <div class="summary-row" style="margin-bottom:1.5rem;">
+        <div class="summary-item" style="border-left:4px solid var(--accent);">
+            <span class="summary-label">Total Orders</span>
+            <span class="summary-value">{{ settled_orders|length }}</span>
         </div>
-        
-        <form autocomplete="off" method="get" action="{{ url_for('settlements.settlements_list') }}" class="filter-form" style="margin:0;">
+        <div class="summary-item" style="border-left:4px solid var(--success);">
+            <span class="summary-label">Total Selling Price</span>
+            <span class="summary-value text-green">₹ {{ "%.2f"|format(settled_summary.selling_price) }}</span>
+        </div>
+        <div class="summary-item" style="border-left:4px solid var(--warning);">
+            <span class="summary-label">Total Deductions</span>
+            <span class="summary-value text-danger">₹ {{ "%.2f"|format(settled_summary.total_deductions) }}</span>
+        </div>
+        <div class="summary-item" style="border-left:4px solid var(--danger);">
+            <span class="summary-label">Other Charges Total</span>
+            <span class="summary-value text-danger">₹ {{ "%.2f"|format(settled_summary.other_charges) }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filter Bar -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:0.65rem 1rem;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+            <a href="{{ url_for('settlements.settlements_list', month=prev_month_key, platform=filter_platform, tab='charges') }}"
+               class="btn btn-sm" title="Previous Month"
+               style="padding:0.2rem 0.6rem; font-size:0.9em; background:#fff; border:1px solid var(--border); border-radius:var(--radius); text-decoration:none; color:var(--text);">«</a>
+            <span style="font-weight:600; font-size:0.95em; padding:0 0.4rem;">{{ month_key }}</span>
+            <a href="{{ url_for('settlements.settlements_list', month=next_month_key, platform=filter_platform, tab='charges') }}"
+               class="btn btn-sm" title="Next Month"
+               style="padding:0.2rem 0.6rem; font-size:0.9em; background:#fff; border:1px solid var(--border); border-radius:var(--radius); text-decoration:none; color:var(--text);">»</a>
+        </div>
+
+        <form autocomplete="off" method="get" action="{{ url_for('settlements.settlements_list') }}" style="margin:0;">
             <input type="hidden" name="tab" value="charges">
             <input type="hidden" name="month" value="{{ month_key }}">
-            <select name="platform" onchange="this.form.submit()">
+            <select name="platform" onchange="this.form.submit()" style="min-width:140px;">
                 <option value="">All Platforms</option>
                 {% for p in platforms %}
                 <option value="{{ p }}" {% if filter_platform==p %}selected{% endif %}>{{ p }}</option>
@@ -391,6 +418,7 @@ TAB 2: SETTLEMENT LOGS (ACCORDION)
         </form>
     </div>
 
+    {% if settled_orders %}
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -416,31 +444,34 @@ TAB 2: SETTLEMENT LOGS (ACCORDION)
                     <td class="text-right">₹ {{ "%.2f"|format(o.shipping) }}</td>
                     <td class="text-right">₹ {{ "%.2f"|format(o.tax) }}</td>
                     <td class="text-right">₹ {{ "%.2f"|format(o.marketplace_fee) }}</td>
-                    <td class="text-right">₹ {{ "%.2f"|format(o.other_charges) }}</td>
+                    <td class="text-right {% if o.other_charges > 0 %}text-danger{% else %}text-muted{% endif %}">
+                        {% if o.other_charges > 0 %}₹ {{ "%.2f"|format(o.other_charges) }}{% else %}—{% endif %}
+                    </td>
                     <td class="text-right text-bold text-danger">₹ {{ "%.2f"|format(o.total_deductions) }}</td>
                 </tr>
                 {% endfor %}
-                {% if not settled_orders %}
-                <tr>
-                    <td colspan="9" class="empty-state">No settled orders found for {{ month_key }}.</td>
-                </tr>
-                {% endif %}
             </tbody>
-            {% if settled_orders %}
-            <tfoot style="background: var(--bg-card); position: sticky; bottom: 0; z-index: 10;">
+            <tfoot style="background:var(--surface); position:sticky; bottom:0; z-index:10;">
                 <tr>
-                    <td colspan="3" class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">TOTALS</td>
-                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.selling_price) }}</td>
-                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.shipping) }}</td>
-                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.tax) }}</td>
-                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.marketplace_fee) }}</td>
-                    <td class="text-right" style="font-weight: 700; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.other_charges) }}</td>
-                    <td class="text-right text-danger" style="font-weight: 800; border-top: 2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.total_deductions) }}</td>
+                    <td colspan="3" class="text-right" style="font-weight:700; border-top:2px solid var(--border);">TOTALS</td>
+                    <td class="text-right text-bold" style="border-top:2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.selling_price) }}</td>
+                    <td class="text-right text-bold" style="border-top:2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.shipping) }}</td>
+                    <td class="text-right text-bold" style="border-top:2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.tax) }}</td>
+                    <td class="text-right text-bold" style="border-top:2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.marketplace_fee) }}</td>
+                    <td class="text-right text-bold text-danger" style="border-top:2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.other_charges) }}</td>
+                    <td class="text-right text-danger" style="font-weight:800; border-top:2px solid var(--border);">₹ {{ "%.2f"|format(settled_summary.total_deductions) }}</td>
                 </tr>
             </tfoot>
-            {% endif %}
         </table>
     </div>
+    {% else %}
+    <div class="empty-state" style="padding:3rem; text-align:center; border:1px dashed var(--border); border-radius:var(--radius);">
+        <div style="font-size:2.5rem; margin-bottom:1rem;">🧾</div>
+        <h3>No settled orders for {{ month_key }}</h3>
+        <p class="text-muted">Settled orders with deductions will appear here.</p>
+    </div>
+    {% endif %}
+
 </div>
 
 {# ═══════════════════════════════════════════════════════════
