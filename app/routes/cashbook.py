@@ -81,6 +81,14 @@ def add_expense():
         flash('Invalid amount.', 'error')
         return redirect(url_for('cashbook.dashboard'))
 
+    if receipt_file and receipt_file.filename:
+        receipt_file.seek(0, 2)
+        file_size = receipt_file.tell()
+        receipt_file.seek(0)
+        if file_size > 3 * 1024 * 1024:
+            flash('Receipt file must be under 3MB.', 'error')
+            return redirect(url_for('cashbook.dashboard'))
+
     add_cashbook_entry(
         entry_type='outflow',
         category=category,
