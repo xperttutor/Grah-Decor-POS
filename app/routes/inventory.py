@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from app import get_db
 from app.services.inventory_service import (
     get_all_raw_materials, add_raw_material, update_raw_material, delete_raw_material,
     get_all_ready_stock, get_ready_stock_grouped, add_ready_stock, add_ready_stock_variant,
@@ -348,3 +349,29 @@ def api_raw_stock_ledger():
     events.sort(key=lambda e: e['iso_date'])
     events.reverse()
     return jsonify(events)
+
+
+@inventory_bp.route('/api/raw-material-price-history/<material_id>', methods=['GET'])
+def api_raw_material_price_history(material_id):
+    """
+    Return the price_history array from a raw_material document.
+    Dates are serialised to ISO-8601 strings for JSON transport.
+    """
+    db = get_db()
+    doc = db.collection('raw_materials').document(material_id).get()
+    if not doc.exists:
+        return jsonify({'error': 'Material not found'}), 404
+
+    history = doc.to_dict().get('price_history', [])
+
+    # Serialise any datetime objects so JSON encoding never fails
+    serialised = []
+    for entry in history:
+        e = dict(entry)
+        if hasattr(e.get('date'), 'isoformat'):
+            e['date'] = e['date'].isoformat()
+        serialised.append(e)
+
+    # Sort newest-first
+    serialised.sort(key=lambda x: x.get('date', ''), reverse=True)
+    return jsonify(serialised)

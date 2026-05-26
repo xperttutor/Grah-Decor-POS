@@ -258,12 +258,15 @@ def mark_po_received(po_id):
     # Increment inventory
     po_number = data.get('po_number', po_id)
     reason = f"PO {po_number} Received"
+    vendor_id   = data.get('vendor_id')
+    vendor_name = data.get('vendor_name')
 
     for it in updated_items:
         item_name = it.get('item')
         qty        = float(it.get('received_qty', 0))
         unit_cost  = float(it.get('unit_cost', 0))
-        if not adjust_raw_material_qty(item_name, qty, reason=reason, price=unit_cost):
+        if not adjust_raw_material_qty(item_name, qty, reason=reason, ref_id=data.get('po_number', po_id),
+                                       price=unit_cost, vendor_id=vendor_id, vendor_name=vendor_name):
             add_raw_material(item_name, qty, 'pcs', reason=reason, price=unit_cost)
 
     return True
@@ -547,7 +550,10 @@ def partial_receive_po(po_id: str, received_quantities: dict) -> dict:
         # Update physical inventory for the delta only
         if incoming > 0:
             items_updated.append(item_name)
-            if not adjust_raw_material_qty(item_name, incoming, reason=reason, price=unit_cost):
+            if not adjust_raw_material_qty(item_name, incoming, reason=reason, ref_id=data.get('po_number', po_id),
+                                           price=unit_cost,
+                                           vendor_id=data.get('vendor_id'),
+                                           vendor_name=data.get('vendor_name')):
                 add_raw_material(item_name, incoming, 'pcs', reason=reason, price=unit_cost)
 
     # Derive the new inventory_status

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from google.cloud.firestore_v1 import FieldFilter
+from google.cloud.firestore_v1 import FieldFilter, ArrayUnion
 from app import get_db
 
 
@@ -145,8 +145,13 @@ def delete_raw_material(doc_id):
     db.collection('raw_materials').document(doc_id).delete()
 
 
-def adjust_raw_material_qty(name, delta, reason='Manual Adjustment', ref_id='', price=None):
-    """Increment (positive delta) or decrement (negative delta) quantity by material name."""
+def adjust_raw_material_qty(name, delta, reason='Manual Adjustment', ref_id='', price=None,
+                            vendor_id=None, vendor_name=None):
+    """Increment (positive delta) or decrement (negative delta) quantity by material name.
+
+    When price is passed (not None), overwrites the price field AND appends
+    a price_history entry to the document via Firestore ArrayUnion.
+    """
     db = get_db()
     docs = list(
         db.collection('raw_materials')
@@ -159,14 +164,21 @@ def adjust_raw_material_qty(name, delta, reason='Manual Adjustment', ref_id='', 
         current = int(float(doc.to_dict().get('quantity', 0)))
         adjusted_delta = int(float(delta))
         new_qty = max(0, current + adjusted_delta)
-        
+
         update_data = {
             'quantity': new_qty,
             'updated_at': datetime.now(timezone.utc),
         }
         if price is not None:
             update_data['price'] = float(price)
-            
+            update_data['price_history'] = ArrayUnion([{
+                'po_id':       ref_id,
+                'vendor_id':   vendor_id,
+                'vendor_name': vendor_name,
+                'unit_cost':   float(price),
+                'date':        datetime.now(timezone.utc),
+            }])
+
         db.collection('raw_materials').document(doc.id).update(update_data)
         log_inventory_transaction('Raw Material', name, '', adjusted_delta, reason, ref_id)
         return True
