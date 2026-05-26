@@ -37,7 +37,9 @@ def create_app():
         else:
             # Cloud Run / GCE / Cloud Build — use the attached service account
             cred = credentials.ApplicationDefault()
-        firebase_admin.initialize_app(cred)
+        firebase_admin.initialize_app(cred, {
+            'storageBucket': app.config['STORAGE_BUCKET'],
+        })
 
     db = firestore.client()
 
