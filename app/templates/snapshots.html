@@ -213,11 +213,16 @@
 
         {# Summary KPIs #}
         {% set s = rs_report.summary %}
+        {% set total_prod_val = namespace(value=0) %}
+        {% for p in rs_report.products %}
+            {% set total_prod_val.value = total_prod_val.value + (p.prod_value|default(0)) %}
+        {% endfor %}
         <div class="rs-kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem;margin-bottom:1.25rem;">
             <div class="rs-kpi"><div class="rs-kpi-label">SKUs Tracked</div><div class="rs-kpi-value">{{ s.total_skus }}</div></div>
             <div class="rs-kpi rs-kpi--added"><div class="rs-kpi-label">Total Added</div><div class="rs-kpi-value">+{{ "%.0f"|format(s.total_added_qty) }}</div></div>
             <div class="rs-kpi rs-kpi--sold"><div class="rs-kpi-label">Total Sold</div><div class="rs-kpi-value">−{{ "%.0f"|format(s.total_sold_qty) }}</div></div>
             <div class="rs-kpi rs-kpi--returned"><div class="rs-kpi-label">Total Returned</div><div class="rs-kpi-value">+{{ "%.0f"|format(s.total_returned_qty) }}</div></div>
+            <div class="rs-kpi rs-kpi--prodval"><div class="rs-kpi-label">Total Prod. Value</div><div class="rs-kpi-value" style="color:var(--primary);">₹ {{ "%.2f"|format(total_prod_val.value) }}</div></div>
         </div>
 
         {# Product filter #}
@@ -237,6 +242,7 @@
                     <th style="text-align:right;color:#059669;">+ Added</th>
                     <th style="text-align:right;color:#dc2626;">− Sold</th>
                     <th style="text-align:right;color:#7c3aed;">↩ Returned</th>
+                    <th style="text-align:right;">Cost/Unit</th>
                     <th style="text-align:right;font-weight:700;">= Closing</th>
                 </tr></thead>
                 <tbody id="rs-tbody">
@@ -252,6 +258,7 @@
                         <td style="text-align:right;color:#059669;">{% if p.added_qty > 0 %}+{{ "%.0f"|format(p.added_qty) }}{% else %}<span style="opacity:.35">0</span>{% endif %}</td>
                         <td style="text-align:right;color:#dc2626;">{% if p.sold_qty > 0 %}−{{ "%.0f"|format(p.sold_qty) }}{% else %}<span style="opacity:.35">0</span>{% endif %}</td>
                         <td style="text-align:right;color:#7c3aed;">{% if p.returned_qty > 0 %}+{{ "%.0f"|format(p.returned_qty) }}{% else %}<span style="opacity:.35">0</span>{% endif %}</td>
+                        <td style="text-align:right;">{% if p.cost_price %}₹ {{ "%.2f"|format(p.cost_price) }}{% else %}—{% endif %}</td>
                         <td style="text-align:right;font-weight:700;
                             {% if p.closing_qty < p.opening_qty %}color:#dc2626;{% elif p.closing_qty > p.opening_qty %}color:#059669;{% endif %}">
                             {{ "%.0f"|format(p.closing_qty) }}
@@ -259,7 +266,7 @@
                     </tr>
                     {% endfor %}
                 {% else %}
-                    <tr><td colspan="7" class="empty-state">No stock movements recorded for this month.</td></tr>
+                    <tr><td colspan="8" class="empty-state">No stock movements recorded for this month.</td></tr>
                 {% endif %}
                 </tbody>
             </table>

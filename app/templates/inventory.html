@@ -129,17 +129,29 @@
 <div class="tab-content {% if active_tab != 'ready' %}hidden{% endif %}" id="tab-ready">
     <div class="form-card hidden" id="readyForm">
         <h3>Add Product / Parent</h3>
-        <form autocomplete="off" method="POST" action="{{ url_for('inventory.ready_add') }}">
+        <form autocomplete="off" method="POST" action="{{ url_for('inventory.ready_add') }}" id="addReadyForm">
+            <!-- Has Variants toggle — must sit above the fields it controls -->
+            <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.6rem;">
+                <input type="checkbox" id="ready-has-variants" name="has_variants" value="1"
+                    onchange="toggleVariantMode(this.checked)"
+                    style="width:16px; height:16px; cursor:pointer; accent-color: var(--accent);">
+                <label for="ready-has-variants" style="font-weight:600; cursor:pointer; margin:0;">
+                    Has Variants (colours/sizes)?
+                </label>
+                <span class="text-muted" style="font-size:0.82em;">
+                    Check this if you will add colour variants below. Quantity is managed per-variant.
+                </span>
+            </div>
             <div class="form-grid form-grid-4">
                 <div class="form-group">
                     <label for="ready-name">Product Name *</label>
                     <input type="text" id="ready-name" name="name" required placeholder="e.g. A4 Frame">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="ready-color-group">
                     <label for="ready-color">Color (optional)</label>
                     <input type="text" id="ready-color" name="color" placeholder="Leave blank if using Variants">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="ready-qty-group">
                     <label for="ready-qty">Initial Quantity</label>
                     <input type="number" id="ready-qty" name="quantity" step="1" min="0" value="0">
                 </div>
@@ -147,7 +159,7 @@
                     <label for="ready-cost">Cost / Unit ₹</label>
                     <input type="number" id="ready-cost" name="cost_price" step="1" min="0" value="0">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="ready-min-stock-group">
                     <label for="ready-min-stock">Min Stock Alert</label>
                     <input type="number" id="ready-min-stock" name="min_stock" step="1" min="0" value="0"
                         title="Show LOW badge when available stock falls to or below this number">
@@ -160,6 +172,27 @@
             </div>
         </form>
     </div>
+    <script>
+    function toggleVariantMode(checked) {
+        var colorGroup = document.getElementById('ready-color-group');
+        var qtyGroup   = document.getElementById('ready-qty-group');
+        var colorInput = document.getElementById('ready-color');
+        var qtyInput   = document.getElementById('ready-qty');
+        if (checked) {
+            colorInput.value    = '';
+            colorInput.disabled = true;
+            colorGroup.style.opacity = '0.4';
+            qtyInput.value    = '0';
+            qtyInput.disabled = true;
+            qtyGroup.style.opacity = '0.4';
+        } else {
+            colorInput.disabled = false;
+            colorGroup.style.opacity = '1';
+            qtyInput.disabled = false;
+            qtyGroup.style.opacity = '1';
+        }
+    }
+    </script>
 
     <button class="btn btn-sm" onclick="toggleForm('readyForm')" style="margin-bottom:1rem">+ Add Product</button>
 

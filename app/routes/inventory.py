@@ -97,14 +97,16 @@ def raw_delete(doc_id):
 
 @inventory_bp.route('/ready/add', methods=['POST'])
 def ready_add():
-    name = request.form.get('name', '').strip()
-    color = request.form.get('color', '').strip()
-    quantity = request.form.get('quantity', 0)
-    cost_price = request.form.get('cost_price', 0)
-    min_stock = request.form.get('min_stock', 0)
-    reason = request.form.get('reason', 'Manual Add').strip() or 'Manual Add'
+    name        = request.form.get('name', '').strip()
+    color       = request.form.get('color', '').strip()
+    quantity    = request.form.get('quantity', 0)
+    cost_price  = request.form.get('cost_price', 0)
+    min_stock   = request.form.get('min_stock', 0)
+    reason      = request.form.get('reason', 'Manual Add').strip() or 'Manual Add'
+    has_variants = request.form.get('has_variants') == '1'
     if name:
-        add_ready_stock(name, color, quantity, cost_price, reason=reason, min_stock=min_stock)
+        add_ready_stock(name, color, quantity, cost_price, reason=reason,
+                        min_stock=min_stock, has_variants=has_variants)
         flash('Ready stock item added.', 'success')
     else:
         flash('Product name is required.', 'error')

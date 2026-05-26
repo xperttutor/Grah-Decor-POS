@@ -498,10 +498,20 @@ PROCESS RETURN MODAL
 
     // ── Tab Switching ──
     function switchSettlementTab(tab) {
-        ['unsettled', 'logs', 'returns', 'charges'].forEach(t => {
-            document.getElementById('tab-' + t)?.classList.toggle('hidden', t !== tab);
-            document.getElementById('btn-tab-' + t)?.classList.toggle('active', t === tab);
-        });
+        var tabs = ['unsettled', 'logs', 'returns', 'charges'];
+        for (var i = 0; i < tabs.length; i++) {
+            var t = tabs[i];
+            var el = document.getElementById('tab-' + t);
+            if (el) {
+                if (t === tab) { el.classList.remove('hidden'); }
+                else { el.classList.add('hidden'); }
+            }
+            var btn = document.getElementById('btn-tab-' + t);
+            if (btn) {
+                if (t === tab) { btn.classList.add('active'); }
+                else { btn.classList.remove('active'); }
+            }
+        }
     }
 
     // ── Settlement Selection ──

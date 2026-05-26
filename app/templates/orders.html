@@ -563,6 +563,8 @@
 
 {% block scripts %}
 <script>
+    // Product map from backend: name → {has_variants: bool, colors: [...]}
+    const PRODUCT_MAP = {{ product_map_json | safe }};
 
     function handleDropdownOther(selectElem) {
         let container = selectElem.parentElement;
@@ -654,37 +656,60 @@
 
     async function fetchVariants(selectEl) {
         const productName = selectEl.value;
+        const row = selectEl.closest('.order-item-row');
         if (!productName || productName === '__other__') return;
-        const colorSel = selectEl.closest('.order-item-row').querySelector('.item-color');
+        const colorSel = row ? row.querySelector('.item-color') : null;
         if (!colorSel) return;
 
-        try {
-            const res = await fetch('/inventory/api/variants?name=' + encodeURIComponent(productName));
-            const variants = await res.json();
-            if (variants.length > 0) {
-                // Replace colour options with fetched variants
-                colorSel.innerHTML = '<option value="">Select Variant</option>';
-                variants.forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v.color;
-                    opt.textContent = v.color + ' (' + v.quantity + ' in stock)';
-                    colorSel.appendChild(opt);
-                });
-                const otherOpt = document.createElement('option');
-                otherOpt.value = '__other__';
-                otherOpt.textContent = 'Other (Custom)...';
-                colorSel.appendChild(otherOpt);
+        const info = PRODUCT_MAP[productName];
+
+        if (info && info.has_variants && info.colors.length > 0) {
+            // Use the pre-built map — no network round-trip needed
+            colorSel.innerHTML = '<option value="">Select Variant *</option>';
+            info.colors.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                colorSel.appendChild(opt);
+            });
+            const otherOpt = document.createElement('option');
+            otherOpt.value = '__other__';
+            otherOpt.textContent = 'Other (Custom)...';
+            colorSel.appendChild(otherOpt);
+            colorSel.required = true;
+        } else if (info && info.has_variants) {
+            // has_variants but map has no colours yet — fall back to API
+            try {
+                const res = await fetch('/inventory/api/variants?name=' + encodeURIComponent(productName));
+                const variants = await res.json();
+                if (variants.length > 0) {
+                    colorSel.innerHTML = '<option value="">Select Variant *</option>';
+                    variants.forEach(v => {
+                        const opt = document.createElement('option');
+                        opt.value = v.color;
+                        opt.textContent = v.color + ' (' + v.quantity + ' in stock)';
+                        colorSel.appendChild(opt);
+                    });
+                    const otherOpt = document.createElement('option');
+                    otherOpt.value = '__other__';
+                    otherOpt.textContent = 'Other (Custom)...';
+                    colorSel.appendChild(otherOpt);
+                }
+                colorSel.required = true;
+            } catch (e) {
+                console.warn('Could not fetch variants:', e);
             }
-            // If no variants, leave colour dropdown as generic list
-        } catch (e) {
-            console.warn('Could not fetch variants:', e);
+        } else {
+            // Standalone item — colour is optional
+            colorSel.required = false;
         }
 
-        // After setting variants, check for duplicates
-        if (checkDuplicates(row)) {
-            alert("This product is already added to the order. Please adjust the quantity of the existing item instead.");
-            selectEl.value = "";
-            colorSel.innerHTML = '<option value="">No Variant</option>';
+        // After populating, check for duplicates
+        if (row && checkDuplicates(row)) {
+            alert('This product is already added to the order. Please adjust the quantity of the existing item instead.');
+            selectEl.value = '';
+            colorSel.innerHTML = '<option value="">None</option>';
+            colorSel.required = false;
             const prefix = row.closest('#edit-order-items') ? 'edit' : 'add';
             calcSettlement(prefix);
         }

@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime
 from app.services.order_service import (
@@ -73,8 +74,42 @@ def orders_list():
     total_settlement = sum(o.get('bank_settlement', 0) for o in orders)
 
     ready_stock = get_all_ready_stock()
-    products = sorted(list(set(s['name'] for s in ready_stock if s.get('name'))))
-    colors = sorted(list(set(s['color'] for s in ready_stock if s.get('color'))))
+
+    # Build structured product map: name → {has_variants, colors}
+    # Grouping parents (has_variants=True) should NOT appear as selectable physical items.
+    # Only standalone items and child variants are physical stock.
+    _product_map = {}
+    for s in ready_stock:
+        name = s.get('name', '')
+        if not name:
+            continue
+        is_variant_child  = bool(s.get('parent_id'))
+        is_grouping_parent = s.get('has_variants', False)
+
+        if is_grouping_parent:
+            # Register the name with has_variants=True; colors will be added by children
+            if name not in _product_map:
+                _product_map[name] = {'has_variants': True, 'colors': []}
+            else:
+                _product_map[name]['has_variants'] = True
+        elif is_variant_child:
+            color = s.get('color', '')
+            if name not in _product_map:
+                _product_map[name] = {'has_variants': True, 'colors': []}
+            if color and color not in _product_map[name]['colors']:
+                _product_map[name]['colors'].append(color)
+        else:
+            # Standalone physical item
+            if name not in _product_map:
+                _product_map[name] = {'has_variants': False, 'colors': []}
+
+    # Legacy flat lists kept for backwards-compatible datalist fallback
+    products = sorted(_product_map.keys())
+    colors   = sorted(list({
+        c for v in _product_map.values() for c in v['colors']
+    }))
+    product_map_json = json.dumps(_product_map)
+
     customers, _, _ = get_all_customers()
 
     return render_template('orders.html',
@@ -84,6 +119,7 @@ def orders_list():
                            reviews=REVIEWS,
                            products=products,
                            colors=colors,
+                           product_map_json=product_map_json,
                            customers=customers,
                            total_sales=total_sales,
                            total_settlement=total_settlement,

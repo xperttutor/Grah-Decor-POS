@@ -229,8 +229,11 @@ def get_inventory_snapshot(start: datetime, end: datetime) -> dict:
             parents[item['id']] = item
 
     for item_id, item in parents.items():
-        children = variants_by_parent.get(item_id, [])
-        if children:
+        # Use the authoritative flag; fall back to checking children for
+        # documents created before the has_variants migration.
+        is_group = item.get('has_variants', False) or bool(variants_by_parent.get(item_id))
+        if is_group:
+            children = variants_by_parent.get(item_id, [])
             for child in children:
                 qty  = float(child.get('quantity', 0))
                 cost = float(child.get('cost_price', 0) or item.get('cost_price', 0))

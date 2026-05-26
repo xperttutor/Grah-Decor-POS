@@ -366,7 +366,35 @@ def get_ready_stock_snapshot(year: int, month: int):
     db  = get_db()
     key = f"{year:04d}-{month:02d}"
     doc = db.collection('ready_stock_snapshots').document(key).get()
-    return {'id': doc.id, **doc.to_dict()} if doc.exists else None
+    if not doc.exists:
+        return None
+        
+    data = {'id': doc.id, **doc.to_dict()}
+    
+    # Fetch live ready_stock for cost_price fallback
+    rs_docs = list(db.collection('ready_stock').stream())
+    # Pass 1: build doc_id → cost_price map for parent cost inheritance
+    parent_cp_map = {d.id: float(d.to_dict().get('cost_price', 0)) for d in rs_docs}
+    
+    cost_price_map = {}
+    for d in rs_docs:
+        m = d.to_dict()
+        # Skip grouping-only parents — they are not physical items
+        # but we still include them in cost_price_map so children can inherit
+        name  = m.get('name', '')
+        color = m.get('color', '') or ''
+        cp    = float(m.get('cost_price', 0))
+        if cp == 0 and m.get('parent_id'):
+            cp = parent_cp_map.get(m.get('parent_id'), 0.0)
+            
+        pkey  = f"{name}::{color}" if color else f"{name}::__none__"
+        cost_price_map[pkey.lower()] = cp
+    for p in data.get('products', []):
+        if 'cost_price' not in p:
+            p['cost_price'] = cost_price_map.get(p.get('product_key', '').lower(), 0.0)
+        p['prod_value'] = p['cost_price'] * p.get('added_qty', 0.0)
+        
+    return data
 
 
 def get_all_ready_stock_snapshots():
@@ -517,6 +545,28 @@ def get_ready_stock_snapshot_live(year: int, month: int):
     prev_key = f"{prev_year:04d}-{prev_month:02d}"
     prev_doc = db.collection('ready_stock_snapshots').document(prev_key).get()
 
+    # Fetch live ready_stock to build cost_price map and fallback opening
+    rs_docs = list(db.collection('ready_stock').stream())
+    # Pass 1: build doc_id → cost_price map for parent cost inheritance
+    parent_cp_map = {d.id: float(d.to_dict().get('cost_price', 0)) for d in rs_docs}
+    
+    cost_price_map = {}
+    opening_map_fallback = {}
+    for d in rs_docs:
+        m = d.to_dict()
+        name  = m.get('name', '')
+        color = m.get('color', '') or ''
+        qty   = float(m.get('quantity', 0))
+        cp    = float(m.get('cost_price', 0))
+        if cp == 0 and m.get('parent_id'):
+            cp = parent_cp_map.get(m.get('parent_id'), 0.0)
+        # Always add to cost_price_map (needed for variant cost inheritance)
+        key = f"{name}::{color}" if color else f"{name}::__none__"
+        cost_price_map[key.lower()] = cp
+        # Only physical items belong in opening_map_fallback
+        if not m.get('has_variants', False):
+            opening_map_fallback[key] = qty
+
     if prev_doc.exists:
         prev_data   = prev_doc.to_dict()
         opening_map = {}
@@ -524,15 +574,7 @@ def get_ready_stock_snapshot_live(year: int, month: int):
             opening_map[row['product_key']] = float(row.get('closing_qty', 0))
     else:
         # Fall back to live ready_stock quantities as approximate opening
-        rs_docs = db.collection('ready_stock').stream()
-        opening_map = {}
-        for d in rs_docs:
-            m = d.to_dict()
-            name  = m.get('name', '')
-            color = m.get('color', '') or ''
-            qty   = float(m.get('quantity', 0))
-            key   = f"{name}::{color}" if color else f"{name}::__none__"
-            opening_map[key] = qty
+        opening_map = opening_map_fallback
 
     # ── This month's log aggregation ───────────────────────────────────────
     month_logs = _fetch_rs_logs(year, month)
@@ -556,6 +598,8 @@ def get_ready_stock_snapshot_live(year: int, month: int):
             item_name = parts[0]
             color     = '' if len(parts) < 2 or parts[1] == '__none__' else parts[1]
 
+        cp = cost_price_map.get(key.lower(), 0.0)
+        
         products.append({
             'product_key':  key,
             'item_name':    item_name,
@@ -565,6 +609,8 @@ def get_ready_stock_snapshot_live(year: int, month: int):
             'sold_qty':     round(sold,     4),
             'returned_qty': round(returned, 4),
             'closing_qty':  round(closing,  4),
+            'cost_price':   cp,
+            'prod_value':   cp * round(added, 4),
         })
 
     period_start, period_end = _month_bounds(year, month)

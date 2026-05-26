@@ -221,18 +221,24 @@ def get_ready_stock_grouped():
     return parents
 
 
-def add_ready_stock(name, color, quantity, cost_price, reason='Manual Add', min_stock=0):
+def add_ready_stock(name, color, quantity, cost_price, reason='Manual Add', min_stock=0, has_variants=False):
     db = get_db()
+    if has_variants:
+        # Grouping-only parent: zero out physical fields
+        color    = ''
+        quantity = 0.0
     db.collection('ready_stock').add({
-        'name': name,
-        'color': color,
-        'quantity': float(quantity or 0),
+        'name':              name,
+        'color':             color,
+        'quantity':          float(quantity or 0),
         'reserved_quantity': 0,
-        'cost_price': float(cost_price or 0),
-        'min_stock': int(float(min_stock or 0)),
-        'updated_at': datetime.now(timezone.utc),
+        'cost_price':        float(cost_price or 0),
+        'min_stock':         int(float(min_stock or 0)),
+        'has_variants':      bool(has_variants),
+        'updated_at':        datetime.now(timezone.utc),
     })
-    log_inventory_transaction('Ready Stock', name, color, quantity, reason)
+    if not has_variants:
+        log_inventory_transaction('Ready Stock', name, color, quantity, reason)
 
 
 def update_ready_stock(doc_id, data):
@@ -260,56 +266,68 @@ def delete_ready_stock(doc_id):
 
 
 def add_ready_stock_variant(parent_id, parent_name, variant_name, quantity, min_stock=0):
-    """Add a colour/variant child under an existing parent product."""
+    """Add a colour/variant child under an existing parent product.
+    Also enforces the parent as a grouping-only document (has_variants=True,
+    quantity=0, reserved_quantity=0, color='') so it can never be treated as
+    a physical item.
+    """
     db = get_db()
     qty = int(float(quantity or 0))
     db.collection('ready_stock').add({
-        'parent_id': parent_id,
-        'name': parent_name,
-        'color': variant_name,
-        'quantity': qty,
+        'parent_id':         parent_id,
+        'name':              parent_name,
+        'color':             variant_name,
+        'quantity':          qty,
         'reserved_quantity': 0,
-        'min_stock': int(float(min_stock or 0)),
-        'updated_at': datetime.now(timezone.utc),
+        'has_variants':      False,  # children are always physical items
+        'min_stock':         int(float(min_stock or 0)),
+        'updated_at':        datetime.now(timezone.utc),
+    })
+    # Ensure parent is cleanly a grouping-only entity
+    db.collection('ready_stock').document(parent_id).update({
+        'has_variants':      True,
+        'quantity':          0,
+        'reserved_quantity': 0,
+        'color':             '',
+        'updated_at':        datetime.now(timezone.utc),
     })
     log_inventory_transaction('Ready Stock', parent_name, variant_name, qty, 'Variant Added')
 
 
 def adjust_ready_stock_qty(name, color, delta=0, reserved_delta=0, reason='Manual Adjustment', ref_id=''):
     """Adjust ready stock quantity by product name + color.
-    If color is provided and a matching variant doc exists, targets that variant.
-    Otherwise falls back to a parent/simple doc matching by name only.
+
+    Targets either:
+    - A child variant document (name + color match, no parent_id guard needed)
+    - A standalone parent document (has_variants=False)
+
+    Explicitly refuses to adjust grouping-only parent documents
+    (has_variants=True). The old name-only fallback has been removed.
     """
     db = get_db()
     query = db.collection('ready_stock').where(filter=FieldFilter('name', '==', name))
     if color:
         query = query.where(filter=FieldFilter('color', '==', color))
     docs = list(query.limit(1).stream())
-    if not docs and color:
-        # Fallback: try matching just by name (simple item with no color field)
-        docs = list(
-            db.collection('ready_stock')
-            .where(filter=FieldFilter('name', '==', name))
-            .limit(1).stream()
-        )
-    if docs:
-        doc = docs[0]
-        data = doc.to_dict()
-        current_qty = data.get('quantity', 0)
-        current_reserved = data.get('reserved_quantity', 0)
-        
-        new_qty = max(0, current_qty + float(delta))
-        new_reserved = max(0, current_reserved + float(reserved_delta))
-        
-        db.collection('ready_stock').document(doc.id).update({
-            'quantity': new_qty,
-            'reserved_quantity': new_reserved,
-            'updated_at': datetime.now(timezone.utc),
-        })
-        if delta != 0:
-            log_inventory_transaction('Ready Stock', name, color, delta, reason, ref_id)
-        return True
-    return False
+    if not docs:
+        return False
+    doc  = docs[0]
+    data = doc.to_dict()
+    # Hard guard: never adjust a grouping-only parent document
+    if data.get('has_variants', False):
+        return False
+    current_qty      = data.get('quantity', 0)
+    current_reserved = data.get('reserved_quantity', 0)
+    new_qty      = max(0, current_qty      + float(delta))
+    new_reserved = max(0, current_reserved + float(reserved_delta))
+    db.collection('ready_stock').document(doc.id).update({
+        'quantity':          new_qty,
+        'reserved_quantity': new_reserved,
+        'updated_at':        datetime.now(timezone.utc),
+    })
+    if delta != 0:
+        log_inventory_transaction('Ready Stock', name, color, delta, reason, ref_id)
+    return True
 
 
 
