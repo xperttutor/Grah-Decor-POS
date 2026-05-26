@@ -1,0 +1,43 @@
+# ── Python artifacts ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# ── Virtual environment ───────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── Secrets & credentials (NEVER bake these into the image) ──────────────────
+.env
+.env.*
+serviceAccountKey.json
+*serviceAccount*.json
+firebase-adminsdk*.json
+*.pem
+*.key
+
+# ── Dev / editor noise ────────────────────────────────────────────────────────
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ── Local test / migration scripts ───────────────────────────────────────────
+scratch/
+fix_reserved_qty.py
+migrate_po_schema.py
+wipe_firebase.py
+output.html
+
+# ── Docs ─────────────────────────────────────────────────────────────────────
+README.md
+
+# ── Logs / databases ─────────────────────────────────────────────────────────
+*.log
+*.sqlite3

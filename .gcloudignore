@@ -1,0 +1,37 @@
+# .gcloudignore — controls what gcloud builds submit uploads to Cloud Build.
+# Syntax is identical to .gitignore / .dockerignore.
+
+# Let gcloud honour .gitignore rules automatically
+.gcloudignore
+
+# ── Python artifacts ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyc
+
+# ── Virtual environment ───────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── Secrets & credentials ─────────────────────────────────────────────────────
+.env
+.env.*
+serviceAccountKey.json
+*serviceAccount*.json
+firebase-adminsdk*.json
+
+# ── Git internals ─────────────────────────────────────────────────────────────
+.git/
+
+# ── Dev / editor noise ────────────────────────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+
+# ── Local scripts & scratch ───────────────────────────────────────────────────
+scratch/
+fix_reserved_qty.py
+migrate_po_schema.py
+wipe_firebase.py
+output.html

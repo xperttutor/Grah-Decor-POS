@@ -24,12 +24,19 @@ def create_app():
     app.config.from_object(Config)
 
     # Initialize Firebase
+    # On Cloud Run: set FIREBASE_KEY_PATH="" (or leave it unset) to use
+    # Application Default Credentials from the attached service account.
+    # Locally: keep serviceAccountKey.json and the default path works as before.
     key_path = app.config['FIREBASE_KEY_PATH']
-    if not os.path.isabs(key_path):
+    if key_path and not os.path.isabs(key_path):
         key_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), key_path)
 
     if not firebase_admin._apps:
-        cred = credentials.Certificate(key_path)
+        if key_path and os.path.exists(key_path):
+            cred = credentials.Certificate(key_path)
+        else:
+            # Cloud Run / GCE / Cloud Build — use the attached service account
+            cred = credentials.ApplicationDefault()
         firebase_admin.initialize_app(cred)
 
     db = firestore.client()

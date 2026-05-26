@@ -1,21 +1,24 @@
-# 1. Use the official lightweight Python image
+# ── Base image ────────────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
-# 2. Set the working directory
+# ── Working directory ─────────────────────────────────────────────────────────
 WORKDIR /app
 
-# 3. Copy only requirements first to leverage Docker cache
+# ── Install dependencies (cached layer — only rebuilds if requirements change) ─
 COPY requirements.txt .
-
-# 4. Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copy the rest of the application
+# ── Copy application source ───────────────────────────────────────────────────
+# .dockerignore excludes: venv, __pycache__, .env, serviceAccountKey.json, etc.
 COPY . .
 
-# 6. Expose the port (Cloud Run defaults to 8080)
+# ── Port ──────────────────────────────────────────────────────────────────────
+# Cloud Run injects $PORT at runtime (usually 8080).
+# EXPOSE is documentation only; the actual binding is done by gunicorn below.
 EXPOSE 8080
 
-# 7. Run the application using Gunicorn for production
-# Workers = 2 * CPU + 1 (For small Cloud Run instance, 1-2 workers is perfect)
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "run:app"]
+# ── Run ───────────────────────────────────────────────────────────────────────
+# Shell form (not JSON array) so $PORT is expanded by the shell.
+# --threads 8 lets a single worker handle concurrent requests efficiently on
+# Cloud Run's single-vCPU instances without the overhead of multiple processes.
+CMD exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120 run:app
